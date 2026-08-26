@@ -17,3 +17,6 @@ Cargo.lock.orig
 .vscode/
 .idea/
 /target/demo/
+
+# worktrees de agentes
+/.claude/worktrees/
