@@ -237,10 +237,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-kernel-api"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-math",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "forge-material-api"
+version = "0.1.0"
+dependencies = [
+ "forge-math",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "forge-math"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
+]
+
+[[package]]
+name = "forge-render-api"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-math",
+ "forge-store",
  "serde",
 ]
 

@@ -94,6 +94,14 @@ pub struct Aabb {
     pub max: DVec3,
 }
 
+impl Default for Aabb {
+    /// La caja vacía: es el elemento neutro de `union`, así que es el único
+    /// valor por defecto que no obliga a un caso especial al acumular.
+    fn default() -> Self {
+        Aabb::EMPTY
+    }
+}
+
 impl Aabb {
     pub const EMPTY: Aabb = Aabb {
         min: DVec3::splat(f64::INFINITY),

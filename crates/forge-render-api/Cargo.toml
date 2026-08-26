@@ -1,0 +1,13 @@
+[package]
+name = "forge-render-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Contrato del motor de render. Sin logica: solo traits y tipos."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-doc = { workspace = true }
+forge-store = { workspace = true }
+serde = { workspace = true }

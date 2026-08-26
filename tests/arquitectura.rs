@@ -54,17 +54,19 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         ("forge-doc", &["forge-math", "forge-store"]),
         ("forge-io", &["forge-doc", "forge-store", "forge-math"]),
         // --- contratos (sin lógica) ---
-        ("forge-kernel-api", &["forge-math", "forge-doc"]),
-        ("forge-render-api", &["forge-math", "forge-doc"]),
+        ("forge-kernel-api", &["forge-math", "forge-doc", "forge-store"]),
+        ("forge-render-api", &["forge-math", "forge-doc", "forge-store"]),
         ("forge-material-api", &["forge-math"]),
         // --- los cuatro pilares: ninguno menciona a otro ---
-        ("forge-param", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
-        ("forge-mesh", &["forge-math", "forge-store", "forge-doc"]),
+        ("forge-param", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api", "forge-kernel-stub"]),
+        ("forge-mesh", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
         ("forge-render", &["forge-math", "forge-store", "forge-doc", "forge-render-api", "forge-material-api"]),
         ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
         // --- implementaciones y servicios ---
-        ("forge-kernel-occt", &["forge-math", "forge-kernel-api"]),
+        ("forge-kernel-occt", &["forge-math", "forge-doc", "forge-kernel-api"]),
+        ("forge-kernel-stub", &["forge-math", "forge-doc", "forge-kernel-api"]),
         ("forge-material", &["forge-math", "forge-material-api"]),
+        ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
         ("forge-interop", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
         ("forge-script", &["forge-math", "forge-doc"]),
         // --- aplicación: es la única que puede verlo todo ---

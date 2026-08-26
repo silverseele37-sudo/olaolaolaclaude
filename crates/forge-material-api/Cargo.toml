@@ -1,0 +1,12 @@
+[package]
+name = "forge-material-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Contrato del grafo de materiales. Lista cerrada de nodos soportados."
+
+[dependencies]
+forge-math = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
