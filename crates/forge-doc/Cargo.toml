@@ -1,0 +1,16 @@
+[package]
+name = "forge-doc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Documento inmutable de FORGE: entidades, transacciones, undo unificado."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+serde = { workspace = true }
+ciborium = { workspace = true }
+thiserror = { workspace = true }
+ulid = { workspace = true }
+rpds = { workspace = true }

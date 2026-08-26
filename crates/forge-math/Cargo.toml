@@ -1,0 +1,11 @@
+[package]
+name = "forge-math"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Primitivas geometricas de FORGE: f64, milimetros, Z arriba."
+
+[dependencies]
+glam = { workspace = true }
+serde = { workspace = true }

@@ -4,10 +4,45 @@ Entorno unificado de modelado: CAD paramétrico exacto, edición poligonal tipo 
 motor de render en tiempo real y almacén de activos versionado, sobre un único
 núcleo de datos.
 
-> **Estado: Fase 0 — diseño.** Todavía no hay código ejecutable. Este repositorio
-> contiene, por ahora, el documento de arquitectura y las decisiones que lo
-> sustentan. La Fase 1 no empieza hasta que la estrategia de representación dual
-> esté cerrada y aceptada.
+> **Estado: Fase 1 en curso — núcleo de datos completo.** El núcleo headless
+> —matemáticas, almacén de blobs, documento con undo unificado y contenedor
+> `.forge`— está implementado, probado y con demo. Falta el visor 3D, que
+> necesita GPU. La Fase 0 (arquitectura y decisiones) está cerrada.
+
+## Empezar
+
+```bash
+cargo test --workspace              # 39 tests
+cargo run -p forge-io --example fase1_nucleo
+```
+
+El demo construye una escena, muestra la deduplicación, guarda un `.forge`, lo
+recarga en un almacén vacío, comprueba igualdad estructural, deshace y rehace, e
+inyecta un fallo de escritura para enseñar que el archivo anterior sobrevive.
+
+El archivo que produce se lee sin FORGE:
+
+```bash
+unzip -l target/demo/soporte.forge
+python3 docs/formato/lector_referencia.py target/demo/soporte.forge
+```
+
+## Estado por crate
+
+| Crate | Qué hace | Estado |
+|---|---|---|
+| `forge-math` | f64, milímetros, **Z arriba**, tolerancias, deflexión adaptativa | ✅ |
+| `forge-store` | blobs por contenido (BLAKE3), dedup, memoria y disco | ✅ |
+| `forge-doc` | documento inmutable, transacciones, **undo unificado**, componentes | ✅ |
+| `forge-io` | contenedor `.forge`, escritura atómica, migraciones | ✅ |
+| `forge-render` | viewport wgpu | pendiente (necesita GPU) |
+| `forge-ui` | navegación, selección | pendiente |
+| `forge-kernel-api` · `forge-kernel-occt` | puente a OpenCASCADE | Fase 2 |
+| `forge-param` · `forge-mesh` · `forge-assets` | los otros tres pilares | Fases 2–5 |
+
+Las fronteras entre crates las hace cumplir `tests/arquitectura.rs`, que falla el
+build si alguien añade una arista prohibida — con control positivo, para que no
+sea un verificador que siempre dice que sí.
 
 ## Qué leer y en qué orden
 
@@ -18,6 +53,7 @@ núcleo de datos.
 | [`docs/fase-0/02-alcance-y-recortes.md`](docs/fase-0/02-alcance-y-recortes.md) | Qué del alcance original es irrealizable y qué se recorta para llegar a un producto usable. |
 | [`docs/fase-0/03-dependencias.md`](docs/fase-0/03-dependencias.md) | Qué integrar (OpenCASCADE, OpenSubdiv, MaterialX, xatlas…) y qué escribir. |
 | [`docs/fase-0/adr/`](docs/fase-0/adr/) | Decisiones de arquitectura, una por archivo, con alternativas descartadas y por qué. |
+| [`docs/formato/`](docs/formato/) | Especificación normativa del formato `.forge`, con lector de referencia en Python que está en el suite de tests. |
 
 ## La decisión central, en una frase
 

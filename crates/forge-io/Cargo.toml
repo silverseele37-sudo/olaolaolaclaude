@@ -1,0 +1,22 @@
+[package]
+name = "forge-io"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Contenedor .forge: formato abierto, escritura atomica, migraciones."
+
+[dependencies]
+forge-doc = { workspace = true }
+forge-store = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_bytes = "0.11"
+ciborium = { workspace = true }
+thiserror = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+zip = { workspace = true }
+forge-math = { workspace = true }
