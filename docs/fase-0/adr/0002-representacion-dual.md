@@ -100,6 +100,40 @@ sobre un teselado.
 Esto elimina de raíz la clase de bug más cara de este tipo de aplicaciones: dos
 representaciones del mismo objeto que divergen y nadie sabe cuál es la buena.
 
+### R1b — La deflexión de teselado sale del tamaño de un píxel, no de una constante
+
+Corolario de R1, tomado de `cadviz` y verificado allí con números.
+
+Un teselado que es caché tiene que saber *para qué vista* es caché. La deflexión
+no se elige a mano: se deriva de cuánto mundo cubre un píxel para la cámara
+actual.
+
+```
+deflexión = 2 · distancia · tan(fov/2) / alto_en_px  ×  0.4
+```
+
+Es decir: «que el error geométrico no supere 0,4 píxeles». Al acercarse, un píxel
+cubre menos mundo y la deflexión baja sola. Contra una constante elegida para la
+vista lejana, `cadviz` midió 1,20 px de error a 3× de zoom y 2,00 px a 5×, contra
+0,40 px constantes con la fórmula.
+
+Esto convierte «el teselado es adaptativo» de una afirmación en un número que
+puede fallar en un test, y es lo que hace que la barra de estado pueda mostrar el
+error de teselado en píxeles.
+
+Dos mecanismos lo hacen usable, y los dos son obligatorios:
+
+- **Coalescing**: si se acumularon peticiones mientras se teselaba, solo importa
+  la última. Sin esto el kernel se atrasa cada vez más procesando zooms que el
+  usuario ya dejó atrás.
+- **Umbral de cambio (1,6× en `cadviz`)**: re-teselar cuesta de milisegundos a
+  segundos; pedirlo por cada píxel de rueda deja al kernel corriendo
+  permanentemente por detrás.
+
+Mientras el kernel trabaja se sigue dibujando el teselado anterior. Es
+consistente con R1: si el teselado es caché, mostrar una caché desactualizada
+durante 200 ms es correcto, no un compromiso.
+
 ### R2 — El cruce de dominio es un nodo del grafo, no un comando destructivo
 
 Existe un nodo `ToMesh { fuente, tolerancia_cuerda, tolerancia_angular, ... }`.

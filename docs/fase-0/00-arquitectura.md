@@ -213,7 +213,53 @@ Decidido ahora porque cambiarlo después es carísimo:
   mayor) y desviación angular (15°). Son parámetros del nodo `ToMesh` y del visor,
   no del modelo.
 - **Render en `f32` con coordenadas relativas a la cámara** y origen local por
-  objeto. Sin esto, una escena grande tiembla visiblemente.
+  objeto. Sin esto, una escena grande tiembla visiblemente. Medido en `cadviz`:
+  `f32` cuantiza a ~2e-6 mm a escala 50 mm, y escala lineal — un modelo de 10 m
+  da ~1e-3 mm. Irrelevante para una pieza, relevante a partir de un ensamblaje
+  grande.
+
+### Orientación de ejes: **Z arriba**
+
+Decidido explícitamente porque es la clase de error que *casi* se ve bien:
+
+- **El documento es Z-up y diestro**, la convención de CAD y STEP.
+- **Toda la bibliografía de gráficos es Y-up.** Copiar un mapeo equirectangular
+  de un tutorial deja el entorno rotado 90° y espejado verticalmente: el suelo
+  arriba y la luz principal saliendo de un costado. `cadviz` pisó exactamente
+  esta mina y la documentó.
+- **La conversión ocurre solo en la frontera de interoperabilidad**, nunca en el
+  núcleo. glTF es Y-up por especificación; USD declara su `upAxis`; STEP no fija
+  uno pero las herramientas CAD son Z-up. `forge-interop` convierte al entrar y
+  al salir, y nada más del sistema conoce otra convención.
+- **Corolario para el shading**: cualquier función que construya una base
+  ortonormal alrededor de una normal debe sembrarse con un eje **y guardar el
+  caso degenerado**. Sembrarla con `(0,1,0)` sin guarda —lo habitual en código
+  Y-up— revienta en un mundo Z-up sobre normales horizontales, que son
+  frecuentes, en vez de sobre los polos, que son raros.
+
+### Hallazgos medidos que valen como especificación
+
+Vienen de `cadviz` ([ADR-0007](adr/0007-relacion-con-cadviz.md)) y evitan
+descubrirlos otra vez:
+
+- **La deflexión de OpenCASCADE entrega ~1,75× menos precisión de la que
+  promete.** `IMeshTools_Parameters::Deflection` acota la desviación de la
+  aproximación lineal de las *curvas*, no la del interior de los *triángulos*.
+  Compensar dividiendo por 2 para que el parámetro signifique de verdad
+  «desviación máxima de la superficie».
+- **`BRepBndLib::Add` debe llamarse con `useTriangulation = false`.** Si no, la
+  caja envolvente crece con el margen de deflexión y **cambia al re-teselar** —
+  con teselado adaptativo eso hace saltar la cámara en cada rueda del ratón, y
+  mueve el encuadre de sombras y el radio de oclusión.
+- **La deflexión no es una constante: sale del tamaño de un píxel en el mundo.**
+  Ver [ADR-0002](adr/0002-representacion-dual.md).
+- **`Backends::PRIMARY`, no `Backends::all()`.** En gráficos híbridos, incluir el
+  backend GL junto a Vulkan y DX12 revienta dentro de `wgpu::Instance::new`,
+  antes de poder enumerar adaptadores.
+- **Fijar `xstep.cascade.unit` explícitamente al arrancar.** El lector STEP de
+  OCCT ya normaliza las unidades del archivo a ese valor (por defecto `MM`), pero
+  es un estático global: el día que algo lo toque, todas las cargas posteriores
+  cambian en silencio.
 
 ---
 
@@ -367,11 +413,11 @@ para que el núcleo salga excelente. Justificación en
 | # | Riesgo | Impacto | Mitigación | Señal de alarma temprana |
 |---|---|---|---|---|
 | R1 | El naming persistente no aguanta y las referencias se rompen a menudo | **Fatal.** Es el fallo que hunde los CAD paramétricos. | Suite de regresión topológica desde la Fase 2; estado `Rota` visible; nunca re-vincular en silencio | <90% de re-vinculación al final de la Fase 2 |
-| R2 | El puente a OCCT resulta más caro de lo previsto | Alto: retrasa la Fase 2 entera | Interfaz de 40–80 funciones, no la API completa; prototipo del puente **antes** de cerrar la Fase 0 | El prototipo de puente supera 3 semanas |
+| R2 | El puente a OCCT resulta más caro de lo previsto | Medio (bajado desde Alto) | Interfaz de 40–80 funciones, no la API completa. **Evidencia:** `cadviz` tiene el lado consumidor funcionando en 16 funciones / ~330 líneas de C++, con ABI doble (OCCT + stub) | El lado constructor (extrude, boolean, fillet, STEP out) supera 4 semanas |
 | R3 | El alcance no se recorta y salen cuatro mitades | **Fatal para el producto**, no para la técnica | Fuera-de-alcance escrito y aceptado; revisión de alcance al cierre de cada fase | Aparece "y ya que estamos…" en las tareas de una fase |
 | R4 | Rendimiento del render con documentos grandes | Medio | Diff por hash y subida incremental a GPU desde la Fase 1; presupuesto de frame medido continuamente | La Fase 1 no llega a 60 fps con 5 M de triángulos |
 | R5 | MaterialX no cubre WGSL y el generador propio crece sin control | Medio | Lista cerrada y pública de nodos soportados; subconjunto acotado | La lista de nodos crece sin que se cierre ninguna función |
-| R6 | Licencias incompatibles con el modelo de negocio | Alto y tardío | Auditoría de licencias en la Fase 0, antes de escribir código; ver [`03-dependencias.md`](03-dependencias.md#5-licencias) | Aparece una dependencia GPL en el árbol |
+| R6 | Licencias incompatibles con el modelo de negocio | Medio (bajado desde Alto) | OCCT confirmado en `cadviz`: LGPL-2.1 **con excepción** — uso comercial sin regalías, con atribución, sin obligación de abrir el código. Falta auditar PlaneGCS, OpenSubdiv, MaterialX, xatlas, ufbx | Aparece una dependencia GPL en el árbol |
 | R7 | Las estructuras persistentes son demasiado lentas para mallas | Medio | Mallas como blobs opacos fuera del árbol; sellado de versión al soltar el ratón | Latencia perceptible al arrastrar vértices en la Fase 3 |
 
 ---
@@ -380,11 +426,31 @@ para que el núcleo salga excelente. Justificación en
 
 Tres cosas, y son baratas comparadas con lo que evitan:
 
-1. **Prototipo desechable del puente OCCT** (~1 semana): compilar OCCT en las tres
-   plataformas, exponer `extrude` y `boolean` por `cxx`, obtener un teselado en
-   Rust. Sirve para calibrar R2 antes de comprometerse.
-2. **Auditoría de licencias** de OpenCASCADE, PlaneGCS, OpenSubdiv, MaterialX,
-   xatlas y ufbx, contrastada con el modelo de distribución previsto.
+1. **Puente a OCCT: portar, no prototipar.** El prototipo desechable de una semana
+   que pedía la versión anterior de este documento ya no hace falta en esa forma:
+   `cadviz` tiene el lado consumidor resuelto y medido, con ABI doble y toolkits
+   descubiertos del disco. Lo que sigue siendo trabajo abierto es el **lado
+   constructor** —extrude, revolve, boolean, fillet, shell, escritura STEP—, que
+   es donde está la dificultad real y donde sigue vigente la estimación de 40–80
+   funciones. Presupuestar 3–4 semanas para eso, no para todo el puente.
+2. **Auditoría de licencias** de PlaneGCS, OpenSubdiv, MaterialX, xatlas y ufbx,
+   contrastada con el modelo de distribución previsto. OCCT ya está resuelto
+   (LGPL-2.1 con excepción). Atención a `libslvs` de SolveSpace: es GPL-3 y
+   contaminaría el proyecto entero.
 3. **Aceptación explícita del recorte de alcance** de la sección 8. Si no se acepta,
    el resto de este documento describe un proyecto distinto y hay que rehacer los
    plazos.
+
+### Convención de documentación, adoptada desde ya
+
+De la referencia técnica de M2 de `cadviz`, y vale para todo documento de FORGE
+que contenga constantes, matrices o fórmulas de terceros:
+
+> Sin marca → verificado contra la fuente primaria citada (código o config real,
+> no un blog secundario).
+> **⚠ NO VERIFICADO** → no se pudo confirmar contra fuente primaria. No copiar
+> sin chequear.
+
+Un documento que distingue lo comprobado de lo recordado vale varias veces uno
+que no lo hace, porque dice **dónde** hay que gastar la desconfianza. Es la misma
+disciplina que los tests de respuesta conocida, aplicada a la prosa.
