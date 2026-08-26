@@ -1,0 +1,18 @@
+[package]
+name = "forge-interop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Importacion y exportacion: glTF 2.0, OBJ. La conversion de ejes vive aqui y solo aqui."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-doc = { workspace = true }
+forge-kernel-api = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

@@ -30,6 +30,10 @@ forge-math  = { path = "crates/forge-math" }
 forge-store = { path = "crates/forge-store" }
 forge-doc   = { path = "crates/forge-doc" }
 forge-io    = { path = "crates/forge-io" }
+forge-kernel-api   = { path = "crates/forge-kernel-api" }
+forge-render-api   = { path = "crates/forge-render-api" }
+forge-material-api = { path = "crates/forge-material-api" }
+forge-interop      = { path = "crates/forge-interop" }
 
 glam      = { version = "0.30", features = ["serde"] }
 blake3    = "1"

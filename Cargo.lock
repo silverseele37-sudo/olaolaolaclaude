@@ -221,6 +221,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-interop"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-kernel-api",
+ "forge-math",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "forge-io"
 version = "0.1.0"
 dependencies = [
