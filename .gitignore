@@ -1,0 +1,18 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# C++ / OpenCASCADE build
+/build/
+/vendor/**/build/
+
+# Artefactos locales
+*.forge.tmp
+/.cache/
+/thumbnails/
+
+# Editores / SO
+.DS_Store
+.vscode/
+.idea/
