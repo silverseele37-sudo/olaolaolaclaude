@@ -260,6 +260,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-kernel-stub"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "forge-doc",
+ "forge-kernel-api",
+ "forge-math",
+ "serde",
+]
+
+[[package]]
 name = "forge-material-api"
 version = "0.1.0"
 dependencies = [

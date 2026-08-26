@@ -84,7 +84,7 @@ impl fmt::Display for VersionId {
 }
 
 /// Clase de una entidad topológica.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub enum TopoClass {
     Face,
     Edge,
@@ -97,7 +97,7 @@ pub enum TopoClass {
 /// recálculo. `mark` lo genera el nodo que crea la geometría, con su propia
 /// semántica ("cara lateral generada por la arista E3 del sketch"), y es lo que
 /// permite que una selección sobreviva a una edición aguas arriba.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct StableId {
     pub origin: FeatureId,
     pub class: TopoClass,
