@@ -61,6 +61,11 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         ("forge-param", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api", "forge-kernel-stub"]),
         ("forge-mesh", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
         ("forge-render", &["forge-math", "forge-store", "forge-doc", "forge-render-api", "forge-material-api"]),
+        // Rasterizador por software: implementa el mismo trait Renderer que la
+        // version wgpu. No es un juguete -- es lo que permite tests por imagen
+        // de referencia sin GPU, que es el hueco de verificacion mas caro que
+        // tiene un motor de render (y el que cadviz identifico como el suyo).
+        ("forge-render-cpu", &["forge-math", "forge-store", "forge-doc", "forge-render-api"]),
         ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
         // --- implementaciones y servicios ---
         ("forge-kernel-occt", &["forge-math", "forge-doc", "forge-kernel-api"]),
@@ -68,7 +73,7 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         ("forge-material", &["forge-math", "forge-material-api"]),
         ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
         ("forge-interop", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
-        ("forge-script", &["forge-math", "forge-doc"]),
+        ("forge-script", &["forge-math", "forge-doc", "forge-store"]),
         // --- aplicación: es la única que puede verlo todo ---
         ("forge-ui", &["forge-math", "forge-store", "forge-doc", "forge-param", "forge-mesh", "forge-render", "forge-assets", "forge-script", "forge-render-api"]),
         ("forge-app", &["forge-math", "forge-store", "forge-doc", "forge-io", "forge-ui", "forge-param", "forge-mesh", "forge-render", "forge-assets", "forge-script", "forge-interop", "forge-kernel-occt", "forge-material"]),
@@ -146,7 +151,7 @@ fn el_guardia_detecta_las_aristas_prohibidas() {
 /// explique *por que* cuando alguien la rompa.
 #[test]
 fn los_cuatro_pilares_no_se_conocen_entre_si() {
-    let pilares = ["forge-param", "forge-mesh", "forge-render", "forge-assets"];
+    let pilares = ["forge-param", "forge-mesh", "forge-render", "forge-render-cpu", "forge-assets"];
     let g = grafo();
     for (crate_, deps) in &g {
         if !pilares.contains(&crate_.as_str()) {
@@ -170,14 +175,16 @@ fn los_cuatro_pilares_no_se_conocen_entre_si() {
 #[test]
 fn el_render_no_arrastra_el_kernel_ni_su_cadena_de_cpp() {
     let g = grafo();
-    if let Some(deps) = g.get("forge-render") {
+    for r in ["forge-render", "forge-render-cpu"] {
+    if let Some(deps) = g.get(r) {
         for d in deps {
             assert!(
                 !d.starts_with("forge-kernel"),
-                "forge-render -> {d}: el renderer consume una vista aplanada de la escena, \
+                "{r} -> {d}: el renderer consume una vista aplanada de la escena, \
                  no el kernel. Los tipos de datos compartidos van a forge-render-api."
             );
         }
+    }
     }
 }
 
