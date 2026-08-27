@@ -78,13 +78,31 @@ impl ModifierStack {
     }
 
     /// Clave de caché de la pila entera.
+    ///
+    /// Mezcla el `kind()` de cada modificador además de su `params_hash()`. Sin
+    /// el `kind()` dos modificadores **de tipos distintos** cuyos parámetros
+    /// hashean igual dan la misma clave, y como esta clave decide si se
+    /// reutiliza un resultado cacheado, el segundo se serviría con la malla del
+    /// primero. `Triangulate` devuelve la constante `0x7A1` y `Weld` hashea un
+    /// solo `f64`: no hace falta rebuscar mucho para que dos coincidan, y basta
+    /// con que alguien de fuera implemente el trait -- es público -- para que
+    /// sea trivial.
+    ///
+    /// El orden ya importaba (FNV es secuencial) y sigue importando.
     pub fn params_hash(&self) -> u64 {
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for m in &self.modificadores {
-            for b in m.params_hash().to_le_bytes() {
+        let mut mezclar = |bytes: &[u8]| {
+            for &b in bytes {
                 h ^= b as u64;
                 h = h.wrapping_mul(0x100_0000_01b3);
             }
+        };
+        for m in &self.modificadores {
+            mezclar(m.kind().as_bytes());
+            // Separador: sin él, kind "ab" con params X y kind "a" con params
+            // "b"+X caerían en la misma secuencia de bytes.
+            mezclar(&[0]);
+            mezclar(&m.params_hash().to_le_bytes());
         }
         h
     }
@@ -176,15 +194,34 @@ impl Subdivide {
                 .filter(|&w| ady.es_borde(v, w))
                 .collect();
 
-            let nuevo = if bordes.len() >= 2 {
+            // Un vértice de borde bien formado tiene **exactamente** dos
+            // aristas de borde, y no por convenio: el número de aristas de
+            // borde en un vértice es siempre par. Cada cara incidente usa dos
+            // de las aristas que salen de él, así que sumando caras por arista
+            // se llega a `k = 2·(grado − caras)`. Dos es el caso del ciclo de
+            // borde normal; cero es un vértice interior.
+            //
+            // Más de dos significa que ahí se tocan dos ciclos de borde
+            // distintos: un pellizco no manifold. No existe «el borde» cuya
+            // curva mantener, existen dos, y la regla de borde no está definida.
+            // La versión anterior cogía `.take(2)` de una lista de vecinos cuyo
+            // orden nadie fija, así que el resultado dependía del orden de
+            // iteración —la peor clase de error, porque no es reproducible—.
+            // Se trata como esquina y se deja quieto, que es la regla estándar
+            // (la de OpenSubdiv) y lo único que no privilegia arbitrariamente a
+            // uno de los dos bordes.
+            //
+            // Uno es imposible por la paridad de arriba mientras ninguna arista
+            // tenga tres caras. Si las tiene, la malla ya estaba rota antes de
+            // llegar aquí; se trata como esquina por la misma razón: dejar el
+            // punto quieto no inventa una dirección.
+            let nuevo = if bordes.len() == 2 {
                 // Regla de borde: (v_prev + 6·v + v_next) / 8. Mantiene la
                 // curva del borde en vez de arrastrarla hacia el interior.
-                let s: DVec3 = bordes
-                    .iter()
-                    .take(2)
-                    .map(|&w| m.positions[w as usize])
-                    .sum();
+                let s: DVec3 = bordes.iter().map(|&w| m.positions[w as usize]).sum();
                 (p * 6.0 + s) / 8.0
+            } else if !bordes.is_empty() {
+                p
             } else {
                 let caras = &ady.vertex_faces[v as usize];
                 let n = vecinos.len() as f64;
@@ -257,8 +294,12 @@ impl Modifier for Subdivide {
             return Err(MeshError::Parametro {
                 modificador: "subdivide",
                 detalle: format!(
-                    "{} niveles multiplicaria las caras por 4^{}",
-                    self.niveles, self.niveles
+                    "{} niveles es demasiado. El primero convierte cada n-gono en \
+                     n cuadrilateros -- no en 4, eso solo vale si la malla ya era \
+                     de cuadrilateros -- y a partir de ahi cada nivel multiplica \
+                     por 4, o sea 4^{} veces la cuenta de despues del primero",
+                    self.niveles,
+                    self.niveles - 1
                 ),
             });
         }

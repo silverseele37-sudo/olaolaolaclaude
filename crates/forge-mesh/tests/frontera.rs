@@ -467,6 +467,164 @@ fn la_pila_tiene_clave_de_cache_estable() {
     );
 }
 
+/// Dos modificadores de tipo distinto con parámetros que hashean igual.
+///
+/// El trait `Modifier` es público: cualquiera puede implementarlo, y nada obliga
+/// a que dos implementaciones distintas devuelvan `params_hash()` distintos.
+/// Estos dos son deliberadamente lo más parecidos posible salvo en el `kind()`.
+struct Uno;
+struct Otro;
+
+macro_rules! gemelo {
+    ($t:ty, $k:literal) => {
+        impl Modifier for $t {
+            fn kind(&self) -> &'static str {
+                $k
+            }
+            fn params_hash(&self) -> u64 {
+                0x7A1 // el mismo que devuelve `Triangulate`
+            }
+            fn apply(&self, input: &Mesh) -> Result<Mesh> {
+                Ok(input.clone())
+            }
+        }
+    };
+}
+gemelo!(Uno, "uno");
+gemelo!(Otro, "otro");
+
+/// Dos cuadriláteros que se tocan **solo en un vértice**: un pellizco.
+///
+/// Ese vértice compartido tiene cuatro aristas de borde, dos por cada cuadrado,
+/// y pertenece a dos ciclos de borde distintos.
+fn pellizco() -> Mesh {
+    let p = |x: f64, y: f64| DVec3::new(x, y, 0.0);
+    let mut m = Mesh {
+        positions: vec![
+            p(0.0, 0.0),
+            p(1.0, 0.0),
+            p(1.0, 1.0), // el vertice del pellizco, indice 2
+            p(0.0, 1.0),
+            p(2.0, 1.0),
+            p(2.0, 2.0),
+            p(1.0, 2.0),
+        ],
+        faces: vec![
+            Face {
+                verts: vec![0, 1, 2, 3],
+            },
+            Face {
+                verts: vec![2, 4, 5, 6],
+            },
+        ],
+        ..Default::default()
+    };
+    m.prov = ProvenanceMap {
+        face_origin: vec![Some(cara(1)), Some(cara(2))],
+    };
+    m
+}
+
+/// En un vértice donde se tocan dos ciclos de borde, la regla de borde no está
+/// definida: hay dos bordes, no uno.
+///
+/// La versión anterior aplicaba la regla de todos modos sobre los **dos
+/// primeros** vecinos de borde que salieran de la lista de adyacencia, cuyo
+/// orden nadie fija. Para el pellizco de abajo eso movía el vértice a
+/// (0.875, 0.875) o a (1.125, 1.125) según qué cuadrado se hubiera recorrido
+/// primero: dos mallas distintas para la misma entrada.
+///
+/// Ahora se trata como esquina y se queda donde está, que es la regla estándar.
+/// El test lo fija en el valor exacto, así que cualquiera de los dos resultados
+/// antiguos falla.
+#[test]
+fn un_vertice_de_pellizco_no_se_mueve_al_subdividir() {
+    let m = pellizco();
+    let s = Subdivide::new(1).apply(&m).unwrap();
+    s.validate().unwrap();
+
+    let pellizcado = DVec3::new(1.0, 1.0, 0.0);
+    let encontrado = s
+        .positions
+        .iter()
+        .filter(|q| (**q - pellizcado).length() < 1e-12)
+        .count();
+    assert_eq!(
+        encontrado, 1,
+        "el vertice del pellizco tiene que seguir exactamente donde estaba; \
+         posiciones: {:?}",
+        s.positions
+    );
+
+    // Y ninguna posicion cerca de donde lo habria dejado la regla de borde.
+    for malo in [DVec3::new(0.875, 0.875, 0.0), DVec3::new(1.125, 1.125, 0.0)] {
+        assert!(
+            s.positions.iter().all(|q| (*q - malo).length() > 1e-9),
+            "se aplico la regla de borde en un vertice con dos bordes"
+        );
+    }
+}
+
+/// Control: en un borde normal la regla de borde **sí** se aplica.
+///
+/// Sin esto, el test de arriba pasaría igual con una implementación que dejara
+/// quieto todo vértice de borde, que es otra cosa distinta y también incorrecta.
+#[test]
+fn un_vertice_de_borde_normal_si_sigue_la_regla_de_borde() {
+    // Un solo cuadrado: los cuatro vertices son de borde con exactamente dos
+    // aristas de borde cada uno. Para (0,0) los vecinos de borde son (1,0) y
+    // (0,1), asi que (6·(0,0) + (1,0) + (0,1)) / 8 = (0.125, 0.125).
+    let p = |x: f64, y: f64| DVec3::new(x, y, 0.0);
+    let mut m = Mesh {
+        positions: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
+        faces: vec![Face {
+            verts: vec![0, 1, 2, 3],
+        }],
+        ..Default::default()
+    };
+    m.prov = ProvenanceMap {
+        face_origin: vec![Some(cara(1))],
+    };
+
+    let s = Subdivide::new(1).apply(&m).unwrap();
+    let esperado = DVec3::new(0.125, 0.125, 0.0);
+    assert!(
+        s.positions.iter().any(|q| (*q - esperado).length() < 1e-12),
+        "no se aplico la regla de borde; posiciones: {:?}",
+        s.positions
+    );
+}
+
+/// La clave de caché tiene que separar modificadores de tipos distintos.
+///
+/// Es un control negativo: si `params_hash()` de la pila solo mezclara el hash
+/// de parámetros de cada modificador —como hacía— estas dos pilas darían la
+/// misma clave, y la segunda se serviría con el resultado cacheado de la
+/// primera. Aquí `apply` es la identidad, así que el fallo sería invisible; en
+/// una pila de verdad devolvería la malla equivocada sin dar ningún error.
+#[test]
+fn la_clave_de_cache_distingue_modificadores_con_los_mismos_parametros() {
+    let a = ModifierStack::new().push(Uno);
+    let b = ModifierStack::new().push(Otro);
+    assert_eq!(
+        Uno.params_hash(),
+        Otro.params_hash(),
+        "el control no vale si los parametros no colisionan"
+    );
+    assert_ne!(
+        a.params_hash(),
+        b.params_hash(),
+        "dos kinds distintos no pueden compartir clave de cache"
+    );
+
+    // Y el separador: "ab" seguido de nada no puede igualar a "a" seguido de
+    // "b". Con `Triangulate` en medio se comprueba que la mezcla del kind no
+    // rompió el caso normal.
+    let c = ModifierStack::new().push(Uno).push(Triangulate);
+    let d = ModifierStack::new().push(Otro).push(Triangulate);
+    assert_ne!(c.params_hash(), d.params_hash());
+}
+
 // ---------------------------------------------------------------------------
 // Re-vinculación
 // ---------------------------------------------------------------------------

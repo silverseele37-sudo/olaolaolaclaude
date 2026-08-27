@@ -944,11 +944,18 @@ impl AssetStore {
 
     /// Contenido de una versión concreta del historial.
     pub fn content_of(&self, id: AssetId, v: VersionId) -> Result<Option<Arc<[u8]>>> {
+        // Una versión que no cabe en `i64` no puede estar en el índice: el lado
+        // de escritura las rechaza. Se sale aquí en vez de dejar que el `as
+        // i64` la convierta en otra cosa y consultar por un número que no es el
+        // que se pidió.
+        let Ok(vi) = i64::try_from(v.0) else {
+            return Ok(None);
+        };
         let h: Option<String> = self
             .conn
             .query_row(
                 "SELECT hash FROM versiones WHERE id = ?1 AND version = ?2",
-                params![id.to_string(), v.0 as i64],
+                params![id.to_string(), vi],
                 |r| r.get(0),
             )
             .optional()?;
@@ -1160,11 +1167,14 @@ impl AssetStore {
     }
 
     fn existe_version(&self, id: AssetId, v: VersionId) -> Result<bool> {
+        let Ok(vi) = i64::try_from(v.0) else {
+            return Ok(false);
+        };
         let x: Option<i64> = self
             .conn
             .query_row(
                 "SELECT 1 FROM versiones WHERE id = ?1 AND version = ?2",
-                params![id.to_string(), v.0 as i64],
+                params![id.to_string(), vi],
                 |r| r.get(0),
             )
             .optional()?;
@@ -1232,6 +1242,27 @@ impl AssetStore {
 /// Los eventos sobre activos que ya no existen se ignoran en vez de fallar: un
 /// diario largo contiene etiquetados de activos borrados después, y eso es
 /// historia normal, no corrupción.
+/// Convierte un `u64` del diario a `i64` para SQLite, o falla.
+///
+/// SQLite no tiene enteros sin signo: su `INTEGER` es un `i64`. Un `as i64` a
+/// secas convierte `u64::MAX` en `-1` sin avisar, y a partir de ahí el tamaño
+/// que se le enseña al usuario es negativo y los filtros por rango no casan con
+/// nada. Es el mismo fallo que ya se arregló en el lado de la consulta, donde
+/// `size_between(0, u64::MAX)` producía `tam BETWEEN 0 AND -1` y devolvía cero
+/// resultados en silencio.
+///
+/// Aquí no se satura, se rechaza: en la consulta `u64::MAX` es un centinela
+/// legítimo de «sin tope», pero un tamaño o una versión que no cabe en `i64`
+/// solo puede venir de un diario adulterado, y el diario es la fuente de verdad
+/// del almacén. Saturar guardaría un valor que no es el que dice el registro.
+fn a_i64(v: u64, que: &str) -> Result<i64> {
+    i64::try_from(v).map_err(|_| {
+        AssetError::RegistroIlegible(format!(
+            "{que} = {v} no cabe en el entero con signo de SQLite; el diario esta adulterado"
+        ))
+    })
+}
+
 fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
     match r {
         Registro::Importado {
@@ -1269,10 +1300,10 @@ fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
                 i64::from(meta.kind.code()),
                 meta.notes,
                 normalizar(&meta.notes),
-                *tam as i64,
+                a_i64(*tam, "tam")?,
                 ts,
                 origen,
-                *version as i64,
+                a_i64(*version, "version")?,
                 hash,
             ])?;
 
@@ -1280,7 +1311,13 @@ fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
                 "INSERT OR REPLACE INTO versiones(id, version, hash, tam, creada)
                  VALUES(?1, ?2, ?3, ?4, ?5)",
             )?
-            .execute(params![id, *version as i64, hash, *tam as i64, ts])?;
+            .execute(params![
+                id,
+                a_i64(*version, "version")?,
+                hash,
+                a_i64(*tam, "tam")?,
+                ts
+            ])?;
 
             poner_etiquetas(c, id, &meta.tags)?;
         }
@@ -1297,7 +1334,7 @@ fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
                  WHERE id = ?1
                    AND EXISTS (SELECT 1 FROM versiones WHERE id = ?1 AND version = ?2)",
             )?
-            .execute(params![id, *version as i64, ts])?;
+            .execute(params![id, a_i64(*version, "version")?, ts])?;
         }
 
         Registro::Meta { id, meta, ts } => {
@@ -1410,6 +1447,63 @@ mod tests {
             AssetMeta::new(n, AssetType::Modelo),
         )
         .expect("importar")
+    }
+
+    /// Un diario adulterado no puede colar un tamaño negativo en el índice.
+    ///
+    /// SQLite guarda enteros con signo. `u64::MAX as i64` es `-1`, así que un
+    /// registro con `tam: u64::MAX` se guardaría como un activo de tamaño −1: el
+    /// usuario vería un tamaño negativo y `size_between` no lo encontraría
+    /// jamás. Es el mismo fallo que ya se arregló en el lado de la consulta,
+    /// pero por la puerta de la escritura.
+    ///
+    /// El control negativo de abajo es lo que hace que este test valga algo: si
+    /// `a_i64` saturara en vez de rechazar —que fue la primera idea— el registro
+    /// entraría con `i64::MAX` y la primera mitad del test pasaría igual.
+    #[test]
+    fn el_indice_rechaza_un_registro_con_un_tamano_que_no_cabe() {
+        let c = Connection::open_in_memory().expect("sqlite");
+        esquema::crear(&c).expect("esquema");
+
+        let malo = Registro::Importado {
+            id: "01ABCDEFGHIJKLMNOPQRSTUVWX".into(),
+            version: 1,
+            hash: "0".repeat(64),
+            tam: u64::MAX,
+            origen: "/virtual/hostil".into(),
+            meta: AssetMeta::new("hostil", AssetType::Modelo),
+            ts: 0,
+        };
+        match aplicar(&c, &malo) {
+            Err(AssetError::RegistroIlegible(m)) => {
+                assert!(m.contains("tam"), "{m}");
+            }
+            otro => panic!("se acepto un tamano imposible: {otro:?}"),
+        }
+
+        // Control negativo: no se rechazó nada, no se guardó nada. Si el
+        // `execute` se hubiera colado antes del error, aquí habría una fila.
+        let n: i64 = c
+            .query_row("SELECT COUNT(*) FROM activos", [], |r| r.get(0))
+            .expect("contar");
+        assert_eq!(n, 0, "quedo una fila de un registro rechazado");
+
+        // Control positivo: el mismo registro con un tamaño normal sí entra, o
+        // sea que lo que falla es el tamaño y no el resto del registro.
+        let bueno = Registro::Importado {
+            id: "01ABCDEFGHIJKLMNOPQRSTUVWX".into(),
+            version: 1,
+            hash: "0".repeat(64),
+            tam: 4096,
+            origen: "/virtual/hostil".into(),
+            meta: AssetMeta::new("hostil", AssetType::Modelo),
+            ts: 0,
+        };
+        aplicar(&c, &bueno).expect("un tamano normal tiene que entrar");
+        let t: i64 = c
+            .query_row("SELECT tam FROM activos", [], |r| r.get(0))
+            .expect("leer tam");
+        assert_eq!(t, 4096);
     }
 
     /// Respuesta conocida del normalizador. Sin este test, "no distingue
