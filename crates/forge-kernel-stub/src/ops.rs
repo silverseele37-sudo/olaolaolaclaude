@@ -305,21 +305,39 @@ pub fn biselar(
                 bucle.push(copia[&(v, fi)]);
             } else {
                 // Tercera cara de la esquina: hay que meter las DOS copias, y
-                // el orden lo decide con cuál de las dos caras comparte la
-                // arista de entrada. Al revés, el bucle se cruza sobre sí mismo.
-                let prev = c.bucle[(i + m - 1) % m];
-                let clave = (prev.min(v), prev.max(v));
-                let vecinas = caras_de_arista.get(&clave).cloned().unwrap_or_default();
-                let primera = *e
-                    .caras
-                    .iter()
-                    .find(|f| vecinas.contains(f))
-                    .unwrap_or(&e.caras[0]);
-                let segunda = *e
-                    .caras
-                    .iter()
-                    .find(|f| **f != primera)
-                    .unwrap_or(&e.caras[1]);
+                // el orden importa -- al reves el bucle se cruza sobre si mismo
+                // y sale un solido con volumen erroneo que ademas parece valido.
+                //
+                // El orden se decide **geometricamente**, no por topologia. La
+                // version anterior miraba con cual de las dos caras comparte la
+                // arista anterior del bucle, y eso presupone una relacion de
+                // enrollado entre las tres caras de la esquina que **no es
+                // uniforme**: en un cubo la cara de arriba esta enrollada al
+                // reves que la de abajo respecto de las laterales, porque asi
+                // tienen que estar para mirar ambas hacia fuera.
+                //
+                // Medido: 6 de las 12 aristas de un cubo daban volumen
+                // incorrecto -- 935, 868.33, y una 1001.67, que *aumentaba* el
+                // volumen -- y `is_valid` no lo detectaba en ninguna.
+                //
+                // Las dos copias caen en el plano de esta cara y ambas cuelgan
+                // de `v`, asi que basta ordenarlas por proximidad angular al
+                // vertice anterior del bucle: la que apunta mas hacia `prev` va
+                // primero. Eso no depende del enrollado de ninguna cara.
+                let pv = p.verts[v as usize];
+                let hacia_prev = (p.verts[c.bucle[(i + m - 1) % m] as usize] - pv)
+                    .normalize_or_zero();
+                let (f0, f1) = (e.caras[0], e.caras[1]);
+                let alineacion = |f: u32| {
+                    (verts[copia[&(v, f)] as usize] - pv)
+                        .normalize_or_zero()
+                        .dot(hacia_prev)
+                };
+                let (primera, segunda) = if alineacion(f0) >= alineacion(f1) {
+                    (f0, f1)
+                } else {
+                    (f1, f0)
+                };
                 bucle.push(copia[&(v, primera)]);
                 bucle.push(copia[&(v, segunda)]);
             }
@@ -338,6 +356,41 @@ pub fn biselar(
     let etiqueta = if es_fillet { "fillet" } else { "chamfer" };
     for (k, e) in elegidas.iter().enumerate() {
         let (f0, f1) = (e.caras[0], e.caras[1]);
+        let mut bucle = vec![
+            copia[&(e.a, f0)],
+            copia[&(e.b, f0)],
+            copia[&(e.b, f1)],
+            copia[&(e.a, f1)],
+        ];
+
+        // **Orientar la cara nueva explicitamente.**
+        //
+        // El orden de arriba depende de cual de las dos caras adyacentes salga
+        // como `e.caras[0]`, y eso lo decide la iteracion de un BTreeMap: es
+        // arbitrario. Si salen al reves, el cuadrilatero queda enrollado hacia
+        // dentro, y el `invertir()` del final no lo arregla porque ese solo da
+        // la vuelta al solido entero, no a una cara suelta.
+        //
+        // El resultado medido era un solido que parecia valido y tenia el
+        // volumen mal: de las 12 aristas de un cubo, 6 daban 935, 868.33 o
+        // incluso 1001.67 -- esta ultima *aumentando* el volumen, que es la
+        // firma inconfundible de una cara del reves.
+        //
+        // La normal del chaflan tiene que apuntar hacia fuera, y hacia fuera en
+        // una arista convexa es la suma de las normales de las dos caras que
+        // sustituye.
+        let hacia_fuera = (p.normal_de(&p.caras[f0 as usize])
+            + p.normal_de(&p.caras[f1 as usize]))
+        .normalize_or_zero();
+        let (a, b, c) = (
+            verts[bucle[0] as usize],
+            verts[bucle[1] as usize],
+            verts[bucle[2] as usize],
+        );
+        if (b - a).cross(c - a).dot(hacia_fuera) < 0.0 {
+            bucle.reverse();
+        }
+
         caras.push(Cara {
             id: StableId {
                 origin: owner,
@@ -345,12 +398,7 @@ pub fn biselar(
                 mark: marca(etiqueta, k as u32),
             },
             prov: TopoProvenance::Blend { of: e.id },
-            bucle: vec![
-                copia[&(e.a, f0)],
-                copia[&(e.b, f0)],
-                copia[&(e.b, f1)],
-                copia[&(e.a, f1)],
-            ],
+            bucle,
         });
     }
 

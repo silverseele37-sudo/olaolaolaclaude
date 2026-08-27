@@ -409,31 +409,54 @@ fn el_fillet_produce_la_misma_topologia_que_el_chaflan() {
     let k = k();
     let cubo = k.box_solid(DVec3::ZERO, DVec3::splat(10.0), f()).unwrap();
     let aristas = k.topology(cubo).unwrap().edges;
-    // dos aristas que NO comparten vertice
-    let a = aristas[0].id;
+
+    // Dos aristas que NO comparten vértice: la opuesta por el centro del cubo.
+    // El centroide de una es el reflejo del de la otra respecto a (5, 5, 5), y
+    // en unidades de firma eso es 10000 − c.
+    let a = &aristas[0];
+    let opuesto = |c: [i64; 3]| [10_000 - c[0], 10_000 - c[1], 10_000 - c[2]];
     let b = aristas
         .iter()
-        .find(|e| {
-            let s0 = k.topology(cubo).unwrap();
-            let _ = &s0;
-            e.id != a
-        })
-        .map(|e| e.id)
-        .unwrap();
-    let _ = b;
+        .find(|e| e.signature.centroid_q == opuesto(a.signature.centroid_q))
+        .expect("toda arista del cubo tiene su opuesta por el centro");
 
-    let s = k
-        .fillet(cubo, &[a], FilletSpec::Constant { radius_mm: 1.5 }, f())
+    // Una sola arista.
+    let s1 = k
+        .fillet(cubo, &[a.id], FilletSpec::Constant { radius_mm: 1.5 }, f())
         .unwrap();
-    let t = k.topology(s).unwrap();
-    assert_eq!(t.faces.len(), 7);
-    assert_eq!(
-        t.faces
-            .iter()
-            .filter(|f| matches!(f.provenance, TopoProvenance::Blend { .. }))
-            .count(),
-        1
+    let t1 = k.topology(s1).unwrap();
+    assert_eq!(t1.faces.len(), 7);
+    assert_eq!(blends(&t1), 1);
+
+    // Las dos a la vez. Al no compartir vértice no interfieren: cada una quita
+    // su propio prisma, 1000 − 2·(1.5²/2)·10 = 977.5 mm³.
+    let s2 = k
+        .fillet(
+            cubo,
+            &[a.id, b.id],
+            FilletSpec::Constant { radius_mm: 1.5 },
+            f(),
+        )
+        .unwrap();
+    let t2 = k.topology(s2).unwrap();
+    assert_eq!(t2.faces.len(), 8, "6 heredadas + 2 blend");
+    assert_eq!(blends(&t2), 2);
+
+    let m = k.mass_properties(s2).unwrap();
+    assert!(
+        (m.volume_mm3 - 977.5).abs() < 1e-9,
+        "volumen {}",
+        m.volume_mm3
     );
+    let r = k.is_valid(s2).unwrap();
+    assert!(r.valid, "{:?}", r.problems);
+}
+
+fn blends(t: &TopologySummary) -> usize {
+    t.faces
+        .iter()
+        .filter(|f| matches!(f.provenance, TopoProvenance::Blend { .. }))
+        .count()
 }
 
 #[test]
@@ -683,4 +706,102 @@ fn is_valid_detecta_solidos_mal_formados() {
         r.is_err(),
         "una caja invertida deberia rechazarse al construirla"
     );
+}
+
+/// Chaflán de 1 mm sobre **cada una** de las 12 aristas del cubo, una por una.
+///
+/// Este es el test cuya ausencia dejó pasar un bug real: la cara del chaflán se
+/// construía recorriendo `e.caras[0]` y `e.caras[1]` en el orden en que salían
+/// del mapa, que es arbitrario. Cuando salían al revés, el cuadrilátero quedaba
+/// enrollado hacia dentro y el sólido daba 1001.67, 935 o 868.33 mm³ — con
+/// `is_valid()` diciendo que todo estaba bien. 6 de las 12 aristas fallaban.
+///
+/// Con una sola arista el bug es invisible: la arista 0 está en el grupo bueno.
+#[test]
+fn el_chaflan_da_el_mismo_volumen_en_las_doce_aristas_del_cubo() {
+    let k = k();
+    let cubo = k.box_solid(DVec3::ZERO, DVec3::splat(10.0), f()).unwrap();
+    let aristas = k.topology(cubo).unwrap().edges;
+    assert_eq!(aristas.len(), 12, "un cubo tiene 12 aristas");
+
+    // 1000 − (1²/2)·10 = 995, sea cual sea la arista: las 12 son equivalentes
+    // por simetría.
+    const ESPERADO: f64 = 995.0;
+
+    let mut fallos = Vec::new();
+    for (i, a) in aristas.iter().enumerate() {
+        let s = k
+            .chamfer(cubo, &[a.id], ChamferSpec::Symmetric { distance_mm: 1.0 }, f())
+            .unwrap();
+
+        let m = k.mass_properties(s).unwrap();
+        if (m.volume_mm3 - ESPERADO).abs() >= 1e-9 {
+            fallos.push(format!("arista {i}: volumen {:.4}", m.volume_mm3));
+            continue;
+        }
+
+        // El volumen interno puede ser correcto y el teselado no. Se comprueba
+        // por el teorema de la divergencia, que no comparte código con
+        // `mass_properties`.
+        let t = k
+            .tessellate(
+                s,
+                &TessellationParams {
+                    chord_mm: 0.01,
+                    angular_deg: 15.0,
+                },
+            )
+            .unwrap();
+        let vt = volumen_teselado(&t);
+        if (vt - ESPERADO).abs() >= 1e-6 {
+            fallos.push(format!("arista {i}: teselado {vt:.4}"));
+            continue;
+        }
+
+        let r = k.is_valid(s).unwrap();
+        if !r.valid {
+            fallos.push(format!("arista {i}: invalido {:?}", r.problems));
+            continue;
+        }
+        let top = k.topology(s).unwrap();
+        if top.faces.len() != 7 {
+            fallos.push(format!("arista {i}: {} caras", top.faces.len()));
+        }
+    }
+    assert!(fallos.is_empty(), "{} de 12 mal:\n{}", fallos.len(), fallos.join("\n"));
+}
+
+/// El área también, y se deriva a mano con cuidado porque es fácil quedarse
+/// corto: un chaflán de 1 mm sobre una arista del cubo
+///
+///   - quita un rectángulo de 1×10 de **cada** una de las dos caras adyacentes
+///     a la arista: −20;
+///   - quita un triángulo de catetos 1×1 de **cada** una de las dos caras
+///     perpendiculares a la arista, en sus extremos: −1;
+///   - pone la cara nueva, de √2 × 10: +14.142.
+///
+/// Total 600 − 20 − 1 + 14.142 = 593.142 mm². Las dos caras de los extremos son
+/// justo las que se olvidan al hacer la cuenta rápido.
+///
+/// El volumen por el teorema de la divergencia es ciego a una cara duplicada o
+/// sobrante, porque las contribuciones se cancelan. El área no lo es, y por eso
+/// este test va aparte del de volumen.
+#[test]
+fn el_chaflan_da_la_misma_area_en_las_doce_aristas_del_cubo() {
+    let k = k();
+    let cubo = k.box_solid(DVec3::ZERO, DVec3::splat(10.0), f()).unwrap();
+    let aristas = k.topology(cubo).unwrap().edges;
+    let esperado = 600.0 - 2.0 * 10.0 - 2.0 * 0.5 + 2.0_f64.sqrt() * 10.0;
+
+    for (i, a) in aristas.iter().enumerate() {
+        let s = k
+            .chamfer(cubo, &[a.id], ChamferSpec::Symmetric { distance_mm: 1.0 }, f())
+            .unwrap();
+        let m = k.mass_properties(s).unwrap();
+        assert!(
+            (m.area_mm2 - esperado).abs() < 1e-9,
+            "arista {i}: area {:.6}, esperada {esperado:.6}",
+            m.area_mm2
+        );
+    }
 }
