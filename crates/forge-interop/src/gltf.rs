@@ -84,6 +84,22 @@ impl GltfOptions {
             v
         }
     }
+
+    /// Inversa de `convertir`: Y-up → Z-up, metros → milímetros.
+    /// Usado por `read_glb` para deshacer las transformaciones aplicadas en `to_glb`.
+    fn invertir(&self, v: DVec3) -> DVec3 {
+        let v = if self.to_meters { v * 1000.0 } else { v };
+        if self.y_up { y_up_to_z_up(v) } else { v }
+    }
+
+    /// Inversa de `convertir_normal`: las normales solo rotan, sin escala.
+    fn invertir_normal(&self, v: DVec3) -> DVec3 {
+        if self.y_up {
+            y_up_to_z_up(v)
+        } else {
+            v
+        }
+    }
 }
 
 /// Acumula datos binarios respetando la alineación que exige glTF.
@@ -301,11 +317,13 @@ pub fn glb_json(glb: &[u8]) -> Result<Value> {
 /// Lee un `.glb` y devuelve la malla.
 ///
 /// # Conversiones inversas
-/// - Si el glTF fue generado con Y arriba, lo convierte de vuelta a Z arriba.
-/// - Si el glTF fue generado en metros, lo convierte de vuelta a milímetros.
+/// Aplica las transformaciones inversas especificadas en `opts`:
+/// - Si `opts.y_up`, convierte Y-up → Z-up.
+/// - Si `opts.to_meters`, convierte metros → milímetros.
 ///
-/// La ida y vuelta (escribir → leer) debe cerrar exacta.
-pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
+/// **Importante:** Los `opts` deben ser los mismos que se usaron para escribir el archivo.
+/// La ida y vuelta (escribir con `opts` → leer con `opts`) cierra exacta.
+pub fn read_glb(bytes: &[u8], opts: GltfOptions) -> Result<TriangleSoup> {
     // Parsear header y verificar estructura
     if bytes.len() < 20 {
         return Err(InteropError::Malformed {
@@ -438,11 +456,11 @@ pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
         .to_string();
 
     // Leer POSITION
-    read_positions(&mut soup, buffer, &accessors[pos_idx], buffer_views)?;
+    read_positions(&mut soup, buffer, &accessors[pos_idx], buffer_views, opts)?;
 
     // Leer NORMAL si existe
     if let Some(ni) = normal_idx {
-        read_normals(&mut soup, buffer, &accessors[ni], buffer_views)?;
+        read_normals(&mut soup, buffer, &accessors[ni], buffer_views, opts)?;
     }
 
     // Leer TEXCOORD_0 si existe
@@ -462,12 +480,13 @@ pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
     Ok(soup)
 }
 
-/// Lee posiciones desde el accessor. Invierte las conversiones.
+/// Lee posiciones desde el accessor. Invierte las conversiones especificadas en `opts`.
 fn read_positions(
     soup: &mut TriangleSoup,
     buffer: &[u8],
     accessor: &Value,
     buffer_views: &[Value],
+    opts: GltfOptions,
 ) -> Result<()> {
     let buffer_view_idx = accessor["bufferView"]
         .as_u64()
@@ -520,10 +539,9 @@ fn read_positions(
         let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]])
             as f64;
 
-        // Invertir conversiones: Y-up → Z-up, metros → milímetros
+        // Invertir las conversiones especificadas en opts.
         let v = DVec3::new(x, y, z);
-        let v = y_up_to_z_up(v);
-        let v = v * 1000.0;
+        let v = opts.invertir(v);
 
         soup.positions.push(v);
     }
@@ -531,12 +549,13 @@ fn read_positions(
     Ok(())
 }
 
-/// Lee normales desde el accessor. Invierte la rotación de ejes.
+/// Lee normales desde el accessor. Invierte la rotación de ejes especificada en `opts`.
 fn read_normals(
     soup: &mut TriangleSoup,
     buffer: &[u8],
     accessor: &Value,
     buffer_views: &[Value],
+    opts: GltfOptions,
 ) -> Result<()> {
     let buffer_view_idx = accessor["bufferView"]
         .as_u64()
@@ -589,9 +608,9 @@ fn read_normals(
         let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]])
             as f64;
 
-        // Invertir rotación: Y-up → Z-up
+        // Invertir la rotación especificada en opts.
         let v = DVec3::new(x, y, z);
-        let v = y_up_to_z_up(v);
+        let v = opts.invertir_normal(v);
 
         soup.normals.push(v);
     }
@@ -740,11 +759,11 @@ fn read_indices(
     Ok(())
 }
 
-pub fn read_glb_file(path: impl AsRef<Path>) -> Result<TriangleSoup> {
+pub fn read_glb_file(path: impl AsRef<Path>, opts: GltfOptions) -> Result<TriangleSoup> {
     let path = path.as_ref();
     let bytes = std::fs::read(path).map_err(|e| InteropError::Io {
         path: path.into(),
         source: e,
     })?;
-    read_glb(&bytes)
+    read_glb(&bytes, opts)
 }
