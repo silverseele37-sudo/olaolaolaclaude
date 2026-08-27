@@ -68,11 +68,7 @@ pub struct TopoRef {
 impl TopoRef {
     /// Captura una referencia a partir de una entidad viva de la topología.
     pub fn capturar(sobre: FeatureId, e: &TopoEntity) -> Self {
-        TopoRef {
-            sobre,
-            objetivo: e.id,
-            firma: e.signature,
-        }
+        TopoRef { sobre, objetivo: e.id, firma: e.signature }
     }
 
     pub fn clase(&self) -> TopoClass {
@@ -130,11 +126,7 @@ pub struct Resolver {
 
 impl Default for Resolver {
     fn default() -> Self {
-        Resolver {
-            umbral: 0.60,
-            margen: 0.15,
-            coseno_minimo: 0.90,
-        }
+        Resolver { umbral: 0.60, margen: 0.15, coseno_minimo: 0.90 }
     }
 }
 
@@ -151,11 +143,7 @@ fn centroide(s: &GeometrySignature) -> DVec3 {
 /// Des-cuantiza la normal. No se re-normaliza a propósito: si el kernel guardó
 /// una normal no unitaria, es información y no un error a tapar.
 fn normal(s: &GeometrySignature) -> DVec3 {
-    DVec3::new(
-        s.normal_q[0] as f64,
-        s.normal_q[1] as f64,
-        s.normal_q[2] as f64,
-    ) / 1000.0
+    DVec3::new(s.normal_q[0] as f64, s.normal_q[1] as f64, s.normal_q[2] as f64) / 1000.0
 }
 
 fn medida(s: &GeometrySignature) -> f64 {
@@ -183,11 +171,7 @@ impl Resolver {
         };
         // Para aristas la dirección no tiene sentido orientado: una arista
         // recorrida al revés es la misma arista.
-        let cos = if a.class == TopoClass::Edge {
-            cos.abs()
-        } else {
-            cos
-        };
+        let cos = if a.class == TopoClass::Edge { cos.abs() } else { cos };
         if cos < self.coseno_minimo {
             return None;
         }
@@ -237,9 +221,7 @@ impl Resolver {
         let mut mejor: Option<(f64, StableId)> = None;
         let mut segunda: Option<f64> = None;
         for e in lista {
-            let Some(p) = self.parecido(&r.firma, &e.signature) else {
-                continue;
-            };
+            let Some(p) = self.parecido(&r.firma, &e.signature) else { continue };
             match mejor {
                 Some((m, _)) if p <= m => {
                     if segunda.map(|s| p > s).unwrap_or(true) {
@@ -290,10 +272,7 @@ impl Resolver {
 
         Resolucion {
             referencia: *r,
-            binding: Binding::Rebound {
-                value: id,
-                confidence: p as f32,
-            },
+            binding: Binding::Rebound { value: id, confidence: p as f32 },
             puntuacion: Some(p),
             segunda,
             motivo: "re-vinculada por firma geometrica; revisala",
@@ -301,11 +280,7 @@ impl Resolver {
     }
 
     /// Resuelve una lista y devuelve además cuántas quedaron rotas.
-    pub fn resolver_todas(
-        &self,
-        refs: &[TopoRef],
-        topo: &TopologySummary,
-    ) -> (Vec<Resolucion>, usize) {
+    pub fn resolver_todas(&self, refs: &[TopoRef], topo: &TopologySummary) -> (Vec<Resolucion>, usize) {
         let v: Vec<Resolucion> = refs.iter().map(|r| self.resolver(r, topo)).collect();
         let rotas = v.iter().filter(|r| r.rota()).count();
         (v, rotas)

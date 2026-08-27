@@ -1,7 +1,7 @@
 //! El rasterizador: z-buffer, baricéntricas y recorte contra el plano cercano.
 
-use crate::camara::{facing, Camara, Facing};
-use forge_math::{DVec3, DVec4};
+use crate::camara::{facing, proyectar_homogeneo, Camara, Facing};
+use forge_math::DVec3;
 
 /// Qué hay en un píxel. Lo necesita el test de orientación para contar caras
 /// traseras sin tener que adivinar colores después del mapeo de tono.
@@ -106,9 +106,16 @@ impl Lienzo {
 }
 
 /// Vértice tras la transformación, antes del recorte.
+///
+/// La posición de clip se guarda como `xyz` (`clip`) y `w` por separado, y no
+/// como un único vector de 4 componentes: `forge-math` no reexporta un tipo
+/// Vec4 (ver la nota de [`crate::camara::proyectar_homogeneo`]), y separarlos
+/// además es exactamente lo que necesita el resto del pipeline —`xyz` para
+/// recortar e interpolar, `w` aparte para la división de perspectiva.
 #[derive(Clone, Copy, Debug)]
 pub struct VerticeClip {
-    pub clip: DVec4,
+    pub clip: DVec3,
+    pub clip_w: f64,
     /// Posición **relativa al ojo**. Es el motivo por el que este rasterizador
     /// puede usar `f32` sin perder precisión en una escena de 100 m: lo que se
     /// interpola es la diferencia, no la coordenada absoluta.
@@ -143,6 +150,7 @@ pub fn recortar_cercano(tri: [VerticeClip; 3]) -> Vec<VerticeClip> {
             let t = da / (da - db);
             salida.push(VerticeClip {
                 clip: a.clip + (b.clip - a.clip) * t,
+                clip_w: a.clip_w + (b.clip_w - a.clip_w) * t,
                 rel: a.rel + (b.rel - a.rel) * t,
                 normal: a.normal + (b.normal - a.normal) * t,
             });
@@ -165,12 +173,12 @@ pub struct VerticePixel {
 /// División de perspectiva y paso a píxeles. Ver la nota de handedness en
 /// [`crate::camara`]: la Y se invierte **aquí y solo aquí**.
 pub fn a_pixel(v: &VerticeClip, ancho: u32, alto: u32) -> Option<VerticePixel> {
-    let w = v.clip.w;
+    let w = v.clip_w;
     if !(w.is_finite()) || w <= 1e-12 {
         return None;
     }
     let inv_w = 1.0 / w;
-    let ndc = DVec3::new(v.clip.x * inv_w, v.clip.y * inv_w, v.clip.z * inv_w);
+    let ndc = v.clip * inv_w;
     let iw = inv_w as f32;
     Some(VerticePixel {
         x: ((ndc.x * 0.5 + 0.5) * ancho as f64) as f32,
@@ -290,12 +298,12 @@ pub fn rayo(cam: &Camara, ancho: u32, alto: u32, x: u32, y: u32) -> DVec3 {
     let ndc_x = ((x as f64 + 0.5) / ancho as f64) * 2.0 - 1.0;
     let ndc_y = 1.0 - ((y as f64 + 0.5) / alto as f64) * 2.0;
     let inv = cam.vista_proyeccion.inverse();
-    let cerca = inv * DVec4::new(ndc_x, ndc_y, 0.0, 1.0);
-    let lejos = inv * DVec4::new(ndc_x, ndc_y, 1.0, 1.0);
-    if cerca.w.abs() < 1e-12 || lejos.w.abs() < 1e-12 {
+    let (cerca, w_cerca) = proyectar_homogeneo(&inv, DVec3::new(ndc_x, ndc_y, 0.0));
+    let (lejos, w_lejos) = proyectar_homogeneo(&inv, DVec3::new(ndc_x, ndc_y, 1.0));
+    if w_cerca.abs() < 1e-12 || w_lejos.abs() < 1e-12 {
         return DVec3::NEG_Y;
     }
-    let a = DVec3::new(cerca.x, cerca.y, cerca.z) / cerca.w;
-    let b = DVec3::new(lejos.x, lejos.y, lejos.z) / lejos.w;
+    let a = cerca / w_cerca;
+    let b = lejos / w_lejos;
     (b - a).normalize_or_zero()
 }

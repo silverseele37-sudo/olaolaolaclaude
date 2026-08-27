@@ -41,20 +41,13 @@ pub struct Plano {
 impl Default for Plano {
     /// Plano XY con Z arriba, que es el sistema del proyecto (diestro, Z arriba).
     fn default() -> Self {
-        Plano {
-            origen: DVec3::ZERO,
-            eje_x: DVec3::X,
-            eje_y: DVec3::Y,
-        }
+        Plano { origen: DVec3::ZERO, eje_x: DVec3::X, eje_y: DVec3::Y }
     }
 }
 
 impl Plano {
     pub fn en_z(z: f64) -> Self {
-        Plano {
-            origen: DVec3::new(0.0, 0.0, z),
-            ..Plano::default()
-        }
+        Plano { origen: DVec3::new(0.0, 0.0, z), ..Plano::default() }
     }
 
     /// Normal del plano. Diestra: `x × y`.
@@ -210,35 +203,18 @@ impl NodeKind {
                 for p in &s.perfil {
                     h.u64(p.0 as u64);
                 }
-                h.vec3(s.plano.origen)
-                    .vec3(s.plano.eje_x)
-                    .vec3(s.plano.eje_y);
+                h.vec3(s.plano.origen).vec3(s.plano.eje_x).vec3(s.plano.eje_y);
             }
-            NodeKind::Extrude {
-                direccion,
-                distancia_mm,
-                simetrico,
-                ..
-            } => {
+            NodeKind::Extrude { direccion, distancia_mm, simetrico, .. } => {
                 h.vec3(*direccion).f64(*distancia_mm).bool(*simetrico);
             }
-            NodeKind::Revolve {
-                eje_origen,
-                eje_dir,
-                angulo_rad,
-                ..
-            } => {
+            NodeKind::Revolve { eje_origen, eje_dir, angulo_rad, .. } => {
                 h.vec3(*eje_origen).vec3(*eje_dir).f64(*angulo_rad);
             }
             NodeKind::BoxPrimitive { min, max } => {
                 h.vec3(*min).vec3(*max);
             }
-            NodeKind::Cylinder {
-                base,
-                eje,
-                radio_mm,
-                altura_mm,
-            } => {
+            NodeKind::Cylinder { base, eje, radio_mm, altura_mm } => {
                 h.vec3(*base).vec3(*eje).f64(*radio_mm).f64(*altura_mm);
             }
             NodeKind::Fillet { radio_mm, .. } => {
@@ -355,22 +331,12 @@ pub struct FeatureNode {
 
 impl FeatureNode {
     pub fn nuevo(nombre: impl Into<String>, kind: NodeKind) -> Self {
-        FeatureNode {
-            id: FeatureId::new(),
-            nombre: nombre.into(),
-            suprimido: false,
-            kind,
-        }
+        FeatureNode { id: FeatureId::new(), nombre: nombre.into(), suprimido: false, kind }
     }
 
     /// Con identidad determinista, para tests y documentos generados.
     pub fn con_id(id: FeatureId, nombre: impl Into<String>, kind: NodeKind) -> Self {
-        FeatureNode {
-            id,
-            nombre: nombre.into(),
-            suprimido: false,
-            kind,
-        }
+        FeatureNode { id, nombre: nombre.into(), suprimido: false, kind }
     }
 }
 
@@ -468,9 +434,7 @@ impl FeatureTree {
             return Err(ParamError::TieneDependientes(id, deps));
         }
         self.orden.retain(|x| *x != id);
-        self.nodos
-            .remove(&id)
-            .ok_or(ParamError::NodoDesconocido(id))
+        self.nodos.remove(&id).ok_or(ParamError::NodoDesconocido(id))
     }
 
     /// Borra un nodo de una cadena re-cableando a sus dependientes hacia su
@@ -480,9 +444,7 @@ impl FeatureTree {
         let nodo = self.nodos.get(&id).ok_or(ParamError::NodoDesconocido(id))?;
         let sustituto = nodo.kind.entradas().first().copied();
         for dep in self.dependientes(id) {
-            let Some(d) = self.nodos.get_mut(&dep) else {
-                continue;
-            };
+            let Some(d) = self.nodos.get_mut(&dep) else { continue };
             for e in d.kind.entradas_mut() {
                 if *e == id {
                     match sustituto {
@@ -523,25 +485,12 @@ impl FeatureTree {
     /// usuario: «aplica el chaflán antes que el redondeo». Es también el peor
     /// caso del nombrado persistente, porque cambia la genealogía de todo lo que
     /// hay debajo sin cambiar ni un parámetro.
-    pub fn intercambiar_en_la_cadena(
-        &mut self,
-        primero: FeatureId,
-        segundo: FeatureId,
-    ) -> Result<()> {
-        let n2 = self
-            .nodos
-            .get(&segundo)
-            .ok_or(ParamError::NodoDesconocido(segundo))?;
+    pub fn intercambiar_en_la_cadena(&mut self, primero: FeatureId, segundo: FeatureId) -> Result<()> {
+        let n2 = self.nodos.get(&segundo).ok_or(ParamError::NodoDesconocido(segundo))?;
         if n2.kind.entradas().first() != Some(&primero) {
-            return Err(ParamError::OrdenIncoherente {
-                nodo: segundo,
-                entrada: primero,
-            });
+            return Err(ParamError::OrdenIncoherente { nodo: segundo, entrada: primero });
         }
-        let n1 = self
-            .nodos
-            .get(&primero)
-            .ok_or(ParamError::NodoDesconocido(primero))?;
+        let n1 = self.nodos.get(&primero).ok_or(ParamError::NodoDesconocido(primero))?;
         let abuelo = match n1.kind.entradas().first() {
             Some(a) => *a,
             None => return Err(ParamError::SuprimidoSinEntrada(primero)),
@@ -571,10 +520,8 @@ impl FeatureTree {
             }
         }
         let (i, j) = (
-            self.indice(primero)
-                .ok_or(ParamError::NodoDesconocido(primero))?,
-            self.indice(segundo)
-                .ok_or(ParamError::NodoDesconocido(segundo))?,
+            self.indice(primero).ok_or(ParamError::NodoDesconocido(primero))?,
+            self.indice(segundo).ok_or(ParamError::NodoDesconocido(segundo))?,
         );
         self.orden.swap(i, j);
         Ok(())
@@ -582,23 +529,14 @@ impl FeatureTree {
 
     /// El orden de presentación es coherente con el grafo.
     pub fn comprobar_orden(&self) -> Result<()> {
-        let pos: BTreeMap<FeatureId, usize> = self
-            .orden
-            .iter()
-            .enumerate()
-            .map(|(i, id)| (*id, i))
-            .collect();
+        let pos: BTreeMap<FeatureId, usize> =
+            self.orden.iter().enumerate().map(|(i, id)| (*id, i)).collect();
         for (i, id) in self.orden.iter().enumerate() {
-            let Some(n) = self.nodos.get(id) else {
-                continue;
-            };
+            let Some(n) = self.nodos.get(id) else { continue };
             for e in n.kind.entradas() {
                 if let Some(&j) = pos.get(&e) {
                     if j > i {
-                        return Err(ParamError::OrdenIncoherente {
-                            nodo: *id,
-                            entrada: e,
-                        });
+                        return Err(ParamError::OrdenIncoherente { nodo: *id, entrada: e });
                     }
                 }
             }
@@ -621,9 +559,7 @@ impl FeatureTree {
             salidas.entry(*id).or_default();
         }
         for id in &self.orden {
-            let Some(n) = self.nodos.get(id) else {
-                continue;
-            };
+            let Some(n) = self.nodos.get(id) else { continue };
             for e in n.kind.entradas() {
                 if !self.nodos.contains_key(&e) {
                     return Err(ParamError::NodoDesconocido(e));
@@ -636,12 +572,8 @@ impl FeatureTree {
         // La cola se siembra en el orden de presentación: con ella, el orden
         // topológico de un árbol lineal coincide con lo que ve el usuario, que
         // es lo que hace legibles los mensajes de error.
-        let mut cola: VecDeque<FeatureId> = self
-            .orden
-            .iter()
-            .copied()
-            .filter(|id| grado[id] == 0)
-            .collect();
+        let mut cola: VecDeque<FeatureId> =
+            self.orden.iter().copied().filter(|id| grado[id] == 0).collect();
         let mut salida = Vec::with_capacity(self.orden.len());
         while let Some(id) = cola.pop_front() {
             salida.push(id);
@@ -656,12 +588,8 @@ impl FeatureTree {
 
         if salida.len() != self.orden.len() {
             let emitidos: BTreeSet<FeatureId> = salida.into_iter().collect();
-            let ciclo: Vec<FeatureId> = self
-                .orden
-                .iter()
-                .copied()
-                .filter(|id| !emitidos.contains(id))
-                .collect();
+            let ciclo: Vec<FeatureId> =
+                self.orden.iter().copied().filter(|id| !emitidos.contains(id)).collect();
             return Err(ParamError::Ciclo(ciclo));
         }
         Ok(salida)

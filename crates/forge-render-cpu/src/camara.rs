@@ -18,8 +18,24 @@
 //! frente, por la regla de la mano derecha) queda **horario** en píxeles, o sea
 //! con área con signo negativa. De ahí sale [`Facing`].
 
-use forge_math::{DMat4, DVec3, DVec4};
+use forge_math::{DMat4, DVec3};
 use forge_render_api::Camera;
+
+/// Multiplica `m` por el punto homogéneo `(p.x, p.y, p.z, 1)` y devuelve por
+/// separado la parte `xyz` y la `w`.
+///
+/// `forge-math` no reexporta `glam::DVec4` (el núcleo solo necesita vectores de
+/// hasta 3 componentes) y este crate no puede añadir `glam` como dependencia
+/// directa solo para nombrar ese tipo. La multiplicación fila a fila evita
+/// necesitarlo: `m.row(i)` ya devuelve el vector de 4 componentes sin que haya
+/// que escribir su nombre en ningún sitio, y separar `xyz` de `w` es
+/// exactamente lo que necesita el resto del pipeline —xyz para recortar e
+/// interpolar, `w` aparte para la división de perspectiva.
+pub fn proyectar_homogeneo(m: &DMat4, p: DVec3) -> (DVec3, f64) {
+    let f = [m.row(0), m.row(1), m.row(2), m.row(3)];
+    let val = |i: usize| f[i].x * p.x + f[i].y * p.y + f[i].z * p.z + f[i].w;
+    (DVec3::new(val(0), val(1), val(2)), val(3))
+}
 
 /// Matrices derivadas de una [`Camera`], listas para transformar.
 #[derive(Clone, Copy, Debug)]
@@ -61,22 +77,40 @@ impl Camara {
         Camara { vista, proyeccion, vista_proyeccion: proyeccion * vista, ojo: c.eye }
     }
 
-    /// Los 6 planos del frustum en mundo, `(a, b, c, d)` con dentro = `>= 0`.
+    /// Los 6 planos del frustum en mundo.
     ///
     /// Extracción de Gribb–Hartmann sobre la matriz combinada. La fila del plano
     /// cercano es `r2` sin sumar `r3` porque la profundidad es `[0, 1]` y no
     /// `[-1, 1]`; con la fórmula de OpenGL el plano cercano queda mal colocado y
     /// el culling empieza a comerse geometría delante de la cámara.
-    pub fn planos(&self) -> [DVec4; 6] {
+    pub fn planos(&self) -> [Plano; 6] {
         let m = self.vista_proyeccion;
         let (r0, r1, r2, r3) = (m.row(0), m.row(1), m.row(2), m.row(3));
-        let p = [r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2];
-        let mut out = [DVec4::ZERO; 6];
-        for (i, q) in p.into_iter().enumerate() {
-            let n = DVec3::new(q.x, q.y, q.z).length();
-            out[i] = if n > 1e-12 { q / n } else { q };
+        // Cada fila es el vector de 4 componentes de glam; no hace falta
+        // nombrar su tipo para sumarlas ni para leer .x/.y/.z/.w (ver la nota
+        // de `proyectar_homogeneo`).
+        let filas = [r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2];
+        let mut out = [Plano { normal: DVec3::ZERO, d: 0.0 }; 6];
+        for (i, q) in filas.into_iter().enumerate() {
+            let normal = DVec3::new(q.x, q.y, q.z);
+            let n = normal.length();
+            out[i] = if n > 1e-12 { Plano { normal: normal / n, d: q.w / n } } else { Plano { normal, d: q.w } };
         }
         out
+    }
+}
+
+/// Un plano `normal · p + d >= 0` para «dentro».
+#[derive(Clone, Copy, Debug)]
+pub struct Plano {
+    pub normal: DVec3,
+    pub d: f64,
+}
+
+impl Plano {
+    #[inline]
+    pub fn distancia(&self, p: DVec3) -> f64 {
+        self.normal.dot(p) + self.d
     }
 }
 
@@ -108,8 +142,6 @@ pub fn facing(area: f32) -> Facing {
 /// Conservador: puede aceptar cajas que en realidad no se ven (esquinas del
 /// frustum), nunca rechaza una que sí. El error en esa dirección cuesta píxeles;
 /// en la otra, cuesta geometría que desaparece.
-pub fn fuera_del_frustum(planos: &[DVec4; 6], esquinas: &[DVec3; 8]) -> bool {
-    planos.iter().any(|p| {
-        esquinas.iter().all(|c| p.x * c.x + p.y * c.y + p.z * c.z + p.w < 0.0)
-    })
+pub fn fuera_del_frustum(planos: &[Plano; 6], esquinas: &[DVec3; 8]) -> bool {
+    planos.iter().any(|p| esquinas.iter().all(|&c| p.distancia(c) < 0.0))
 }

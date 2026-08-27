@@ -185,9 +185,7 @@ impl<'k> Evaluator<'k> {
                     .first()
                     .copied()
                     .ok_or(ParamError::SuprimidoSinEntrada(*id))?;
-                let prev = salidas
-                    .get(&entrada)
-                    .ok_or(ParamError::NodoDesconocido(entrada))?;
+                let prev = salidas.get(&entrada).ok_or(ParamError::NodoDesconocido(entrada))?;
                 salidas.insert(
                     *id,
                     NodeOutput {
@@ -245,31 +243,16 @@ impl<'k> Evaluator<'k> {
             }
 
             self.stats.nodos_calculados += 1;
-            let (shape, resoluciones) =
-                self.calcular(*id, nodo.kind.clone(), &salidas, &perfiles)?;
-            self.cache.insert(
-                clave,
-                Entrada {
-                    shape,
-                    resoluciones: resoluciones.clone(),
-                },
-            );
+            let (shape, resoluciones) = self.calcular(*id, nodo.kind.clone(), &salidas, &perfiles)?;
+            self.cache
+                .insert(clave, Entrada { shape, resoluciones: resoluciones.clone() });
             salidas.insert(
                 *id,
-                NodeOutput {
-                    shape,
-                    clave,
-                    desde_cache: false,
-                    resoluciones,
-                },
+                NodeOutput { shape, clave, desde_cache: false, resoluciones },
             );
         }
 
-        Ok(EvalOutcome {
-            salidas,
-            orden,
-            stats: self.stats,
-        })
+        Ok(EvalOutcome { salidas, orden, stats: self.stats })
     }
 
     /// Resuelve el sketch y devuelve el perfil en coordenadas del plano.
@@ -288,10 +271,7 @@ impl<'k> Evaluator<'k> {
         let mut out = Vec::with_capacity(s.perfil.len());
         for p in &s.perfil {
             out.push(r.positions.get(p.0 as usize).copied().ok_or_else(|| {
-                ParamError::SketchInvalido(
-                    id,
-                    format!("el perfil cita el punto {} inexistente", p.0),
-                )
+                ParamError::SketchInvalido(id, format!("el perfil cita el punto {} inexistente", p.0))
             })?);
         }
         Ok(out)
@@ -318,11 +298,7 @@ impl<'k> Evaluator<'k> {
         let topo = self.topologia(entrada)?;
         let (res, rotas) = self.resolver.resolver_todas(refs, &topo);
         if rotas > 0 {
-            return Err(ParamError::ReferenciaRota {
-                nodo: id,
-                rotas,
-                total: refs.len(),
-            });
+            return Err(ParamError::ReferenciaRota { nodo: id, rotas, total: refs.len() });
         }
         let ids = res.iter().filter_map(|r| r.valor()).collect();
         Ok((ids, res))
@@ -353,40 +329,22 @@ impl<'k> Evaluator<'k> {
                 k.release(perfil);
                 Ok((Some(colocado), Vec::new()))
             }
-            NodeKind::Extrude {
-                perfil,
-                direccion,
-                distancia_mm,
-                simetrico,
-            } => {
+            NodeKind::Extrude { perfil, direccion, distancia_mm, simetrico } => {
                 let p = self.shape_de(salidas, perfil)?;
                 self.stats.llamadas_kernel += 1;
                 let s = k.extrude(
                     p,
-                    ExtrudeOpts {
-                        direction: direccion,
-                        distance_mm: distancia_mm,
-                        symmetric: simetrico,
-                    },
+                    ExtrudeOpts { direction: direccion, distance_mm: distancia_mm, symmetric: simetrico },
                     id,
                 )?;
                 Ok((Some(s), Vec::new()))
             }
-            NodeKind::Revolve {
-                perfil,
-                eje_origen,
-                eje_dir,
-                angulo_rad,
-            } => {
+            NodeKind::Revolve { perfil, eje_origen, eje_dir, angulo_rad } => {
                 let p = self.shape_de(salidas, perfil)?;
                 self.stats.llamadas_kernel += 1;
                 let s = k.revolve(
                     p,
-                    RevolveOpts {
-                        axis_origin: eje_origen,
-                        axis_dir: eje_dir,
-                        angle_rad: angulo_rad,
-                    },
+                    RevolveOpts { axis_origin: eje_origen, axis_dir: eje_dir, angle_rad: angulo_rad },
                     id,
                 )?;
                 Ok((Some(s), Vec::new()))
@@ -395,52 +353,22 @@ impl<'k> Evaluator<'k> {
                 self.stats.llamadas_kernel += 1;
                 Ok((Some(k.box_solid(min, max, id)?), Vec::new()))
             }
-            NodeKind::Cylinder {
-                base,
-                eje,
-                radio_mm,
-                altura_mm,
-            } => {
+            NodeKind::Cylinder { base, eje, radio_mm, altura_mm } => {
                 self.stats.llamadas_kernel += 1;
-                Ok((
-                    Some(k.cylinder(base, eje, radio_mm, altura_mm, id)?),
-                    Vec::new(),
-                ))
+                Ok((Some(k.cylinder(base, eje, radio_mm, altura_mm, id)?), Vec::new()))
             }
-            NodeKind::Fillet {
-                entrada,
-                aristas,
-                radio_mm,
-            } => {
+            NodeKind::Fillet { entrada, aristas, radio_mm } => {
                 let e = self.shape_de(salidas, entrada)?;
                 let (ids, res) = self.revincular(id, e, &aristas)?;
                 self.stats.llamadas_kernel += 1;
-                let s = k.fillet(
-                    e,
-                    &ids,
-                    FilletSpec::Constant {
-                        radius_mm: radio_mm,
-                    },
-                    id,
-                )?;
+                let s = k.fillet(e, &ids, FilletSpec::Constant { radius_mm: radio_mm }, id)?;
                 Ok((Some(s), res))
             }
-            NodeKind::Chamfer {
-                entrada,
-                aristas,
-                distancia_mm,
-            } => {
+            NodeKind::Chamfer { entrada, aristas, distancia_mm } => {
                 let e = self.shape_de(salidas, entrada)?;
                 let (ids, res) = self.revincular(id, e, &aristas)?;
                 self.stats.llamadas_kernel += 1;
-                let s = k.chamfer(
-                    e,
-                    &ids,
-                    ChamferSpec::Symmetric {
-                        distance_mm: distancia_mm,
-                    },
-                    id,
-                )?;
+                let s = k.chamfer(e, &ids, ChamferSpec::Symmetric { distance_mm: distancia_mm }, id)?;
                 Ok((Some(s), res))
             }
             NodeKind::Boolean { op, a, b } => {

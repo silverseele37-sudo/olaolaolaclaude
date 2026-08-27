@@ -92,10 +92,7 @@ impl GaussNewtonSolver {
         r.clear();
         let p = |i: PointId| {
             let k = i.0 as usize * 2;
-            DVec2::new(
-                x.get(k).copied().unwrap_or(0.0),
-                x.get(k + 1).copied().unwrap_or(0.0),
-            )
+            DVec2::new(x.get(k).copied().unwrap_or(0.0), x.get(k + 1).copied().unwrap_or(0.0))
         };
         let dim = |d: forge_kernel_api::DimId| m.dimension(d).unwrap_or(0.0);
         // Dirección unitaria de un segmento, con guarda: un segmento degenerado
@@ -130,11 +127,7 @@ impl GaussNewtonSolver {
                 Constraint::Distance { a, b, dim: d } => {
                     r.push((p(b) - p(a)).length() - dim(d));
                 }
-                Constraint::Radius {
-                    center,
-                    rim,
-                    dim: d,
-                } => {
+                Constraint::Radius { center, rim, dim: d } => {
                     r.push((p(rim) - p(center)).length() - dim(d));
                 }
                 Constraint::Parallel { a, b } => {
@@ -256,10 +249,7 @@ fn eliminacion(j: &[f64], m: usize, n: usize, tol: f64) -> (usize, Vec<Vec<f64>>
     let mut a = vec![0.0; m * n];
     let mut y = vec![0.0; m * m];
     for f in 0..m {
-        let norma: f64 = (0..n)
-            .map(|c| j[f * n + c] * j[f * n + c])
-            .sum::<f64>()
-            .sqrt();
+        let norma: f64 = (0..n).map(|c| j[f * n + c] * j[f * n + c]).sum::<f64>().sqrt();
         let s = if norma > 1e-300 { 1.0 / norma } else { 1.0 };
         for c in 0..n {
             a[f * n + c] = j[f * n + c] * s;
@@ -347,12 +337,7 @@ impl SketchSolver for GaussNewtonSolver {
             } else {
                 SolveStatus::UnderConstrained { dof: n }
             };
-            return SolveResult {
-                positions: posiciones(&x),
-                status,
-                residual: 0.0,
-                iterations: 0,
-            };
+            return SolveResult { positions: posiciones(&x), status, residual: 0.0, iterations: 0 };
         }
 
         let mut r = Vec::with_capacity(m);
@@ -441,25 +426,15 @@ impl SketchSolver for GaussNewtonSolver {
         let residual = r.iter().fold(0.0f64, |a, v| a.max(v.abs()));
         let dof = n.saturating_sub(rango);
         let status = if !conflicto.is_empty() {
-            SolveStatus::OverConstrained {
-                conflicting: conflicto,
-            }
+            SolveStatus::OverConstrained { conflicting: conflicto }
         } else if residual > self.tol_residuo.max(1e-8) {
-            SolveStatus::NoConvergence {
-                residual,
-                iterations: it,
-            }
+            SolveStatus::NoConvergence { residual, iterations: it }
         } else if dof > 0 {
             SolveStatus::UnderConstrained { dof }
         } else {
             SolveStatus::Ok
         };
 
-        SolveResult {
-            positions: posiciones(&x),
-            status,
-            residual,
-            iterations: it,
-        }
+        SolveResult { positions: posiciones(&x), status, residual, iterations: it }
     }
 }

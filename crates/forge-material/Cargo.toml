@@ -1,0 +1,16 @@
+[package]
+name = "forge-material"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Generador de WGSL para el subconjunto acotado de NodeKind. ADR-0005."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-material-api = { workspace = true }
+
+[dev-dependencies]
+# Solo para tests: parsear y validar el WGSL generado sin necesitar una GPU.
+# No afecta al guardia de arquitectura, que solo mira dependencias `forge-*`.
+naga = { version = "30", features = ["wgsl-in"] }
