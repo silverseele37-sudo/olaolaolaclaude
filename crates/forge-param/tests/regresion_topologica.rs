@@ -990,3 +990,143 @@ fn des_suprimir_un_nodo_restaura_la_genealogia_exacta_original() {
     );
     assert_eq!(r_restaurado.valor(), Some(ref_chamfer.objetivo));
 }
+
+// ---------------------------------------------------------------------------
+// Sección 4 — reordenación de dos nodos consecutivos de una cadena. El mismo
+// radio grande que la sección 3, y por la misma razón (ver su comentario).
+// ---------------------------------------------------------------------------
+
+/// El "peor caso del nombrado persistente" que documenta `tree.rs`:
+/// intercambiar dos nodos consecutivos de una cadena no cambia ni un
+/// parámetro, pero cambia la genealogía de todo lo que hay debajo. Aquí, la
+/// propia arista que el chaflán bisela: antes del intercambio la ve a través
+/// del fillet (una capa de "mark" reindexado de más); después, directamente
+/// sobre la extrusión cruda (ninguna). El mark no coincide, la geometría sí.
+#[test]
+fn intercambiar_fillet_y_chamfer_hace_que_la_propia_arista_del_chamfer_se_revincule_por_firma() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let fillet_id = fid(3);
+    let chamfer_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_fillet = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    let r0 = medir("antes_de_intercambiar", &k, &tree, chamfer_id);
+    assert!(r0.exacta());
+    assert_eq!(r0.valor(), Some(ref_chamfer.objetivo));
+
+    tree.intercambiar_en_la_cadena(fillet_id, chamfer_id).unwrap();
+
+    let topo_extrude_cruda = topologia_de(&k, &tree, extrude_id);
+    let esperado = arista_vertical_en(&topo_extrude_cruda, altura, 180.0);
+
+    let r1 = medir("tras_intercambiar", &k, &tree, chamfer_id);
+    assert!(!r1.rota());
+    assert!(
+        !r1.exacta(),
+        "el intercambio deberia haber roto el linaje exacto, salio {:?}",
+        r1.binding
+    );
+    assert_eq!(r1.valor(), Some(esperado.id));
+}
+
+/// Y una referencia que no tiene nada que ver con ninguna de las dos
+/// operaciones — una cara que ni el fillet ni el chaflán tocan — también
+/// pierde la genealogía exacta con el intercambio (el mark de **todas** las
+/// caras heredadas se re-deriva en cada bisel, la toquen o no), pero la
+/// geometría en ese punto es bit a bit idéntica sea cual sea el orden: la
+/// capa 2 la recupera con la confianza más alta posible.
+#[test]
+fn intercambiar_fillet_y_chamfer_revincula_por_firma_una_sonda_ajena_a_las_dos_operaciones() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let fillet_id = fid(3);
+    let chamfer_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_fillet = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let _ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    let topo_c0 = topologia_de(&k, &tree, chamfer_id);
+    let sonda0 = arista_vertical_en(&topo_c0, altura, 90.0);
+    let referencia = TopoRef::capturar(chamfer_id, &sonda0);
+
+    tree.intercambiar_en_la_cadena(fillet_id, chamfer_id).unwrap();
+
+    // Tras el intercambio el ultimo nodo de la cadena es el fillet.
+    let topo_final = topologia_de(&k, &tree, fillet_id);
+    let esperado = arista_vertical_en(&topo_final, altura, 90.0);
+    let resolucion = Resolver::default().resolver(&referencia, &topo_final);
+
+    assert!(!resolucion.rota());
+    assert!(
+        !resolucion.exacta(),
+        "tambien deberia perder el linaje exacto, salio {:?}",
+        resolucion.binding
+    );
+    assert_eq!(resolucion.valor(), Some(esperado.id));
+    assert!(
+        resolucion.puntuacion.unwrap() > 0.999,
+        "geometria identica deberia dar practicamente 1.0 de parecido, salio {:?}",
+        resolucion.puntuacion
+    );
+}
+
+/// Intercambiar y deshacer el intercambio recupera exactamente el cableado
+/// original (`entrada` de cada nodo y orden de presentación), sin tocar
+/// ningún parámetro: por eso la genealogía tiene que volver a ser la misma
+/// de antes, no una que "por casualidad" apunte al mismo sitio por firma.
+#[test]
+fn intercambiar_y_deshacer_el_intercambio_recupera_la_genealogia_original() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let fillet_id = fid(3);
+    let chamfer_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_fillet = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    let r0 = medir("antes_de_intercambiar", &k, &tree, chamfer_id);
+    assert!(r0.exacta());
+    assert_eq!(r0.valor(), Some(ref_chamfer.objetivo));
+
+    tree.intercambiar_en_la_cadena(fillet_id, chamfer_id).unwrap();
+    let r_intermedio = medir("intercambiado", &k, &tree, chamfer_id);
+    assert!(
+        !r_intermedio.exacta(),
+        "control: debe haber perdido el linaje mientras esta intercambiado"
+    );
+
+    tree.intercambiar_en_la_cadena(chamfer_id, fillet_id).unwrap();
+    let r1 = medir("tras_ida_y_vuelta", &k, &tree, chamfer_id);
+    assert!(
+        r1.exacta(),
+        "tras deshacer el intercambio deberia volver a resolver por linaje, salio {:?}",
+        r1.binding
+    );
+    assert_eq!(r1.valor(), Some(ref_chamfer.objetivo));
+}
