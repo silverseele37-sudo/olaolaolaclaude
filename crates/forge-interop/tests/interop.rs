@@ -321,7 +321,7 @@ fn glb_json_detecta_contenedores_corruptos() {
 fn glb_ida_y_vuelta_conserva_geometria() {
     let original = caja(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 20.0, 30.0));
     let glb = gltf::to_glb(&original, gltf::GltfOptions::default()).unwrap();
-    let vuelta = gltf::read_glb(&glb).unwrap();
+    let vuelta = gltf::read_glb(&glb, gltf::GltfOptions::default()).unwrap();
 
     assert_eq!(vuelta.triangle_count(), 12);
     assert_eq!(vuelta.positions.len(), original.positions.len());
@@ -354,7 +354,7 @@ fn glb_lee_normal_correctamente() {
     // Verifica que se leen normales y UVs
     let original = caja(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 20.0, 30.0));
     let glb = gltf::to_glb(&original, gltf::GltfOptions::default()).unwrap();
-    let vuelta = gltf::read_glb(&glb).unwrap();
+    let vuelta = gltf::read_glb(&glb, gltf::GltfOptions::default()).unwrap();
 
     // Debe tener normales
     assert!(!vuelta.normals.is_empty(), "no se leyeron las normales");
@@ -368,6 +368,84 @@ fn glb_lee_normal_correctamente() {
     for (a, b) in original.normals.iter().zip(&vuelta.normals) {
         assert!((*a - *b).length() < 1e-5, "{a:?} != {b:?}");
     }
+}
+
+/// Prueba que el round-trip con GltfOptions::crudo() cierra exacto.
+/// Este es el test que faltaba y permitía que el bug pasara desapercibido.
+#[test]
+fn glb_ida_y_vuelta_crudo_cierra_exacto() {
+    let original = caja(DVec3::new(1.0, 2.0, 3.0), DVec3::new(10.0, 20.0, 30.0));
+    let opts = gltf::GltfOptions::crudo();
+    let glb = gltf::to_glb(&original, opts).unwrap();
+    let vuelta = gltf::read_glb(&glb, opts).unwrap();
+
+    assert_eq!(vuelta.triangle_count(), original.triangle_count());
+    assert_eq!(vuelta.positions.len(), original.positions.len());
+    assert_eq!(vuelta.indices, original.indices);
+
+    // Con crudo(), las posiciones deben ser idénticas dentro de tolerancia f32
+    for (a, b) in original.positions.iter().zip(&vuelta.positions) {
+        let diff = (*a - *b).length();
+        assert!(
+            diff < 1e-5,
+            "posiciones no coinciden: {} != {}, diferencia: {}",
+            a, b, diff
+        );
+    }
+
+    // Las normales también deben ser idénticas
+    assert_eq!(vuelta.normals.len(), original.normals.len());
+    for (a, b) in original.normals.iter().zip(&vuelta.normals) {
+        let diff = (*a - *b).length();
+        assert!(
+            diff < 1e-5,
+            "normales no coinciden: {} != {}, diferencia: {}",
+            a, b, diff
+        );
+    }
+}
+
+/// Prueba que escribir con crudo() y leer con default() da valores **distintos**.
+/// Sin este test, alguien podría volver a cablear la conversión y los round-trips
+/// seguirían pasando (porque ambos usarían las mismas conversiones hardcodeadas).
+#[test]
+fn glb_crudo_vs_default_produce_diferencias() {
+    let original = caja(DVec3::new(1.0, 2.0, 3.0), DVec3::new(10.0, 20.0, 30.0));
+
+    // Escribir con crudo(): sin conversiones
+    let glb = gltf::to_glb(&original, gltf::GltfOptions::crudo()).unwrap();
+
+    // Leer con default(): aplica las conversiones por defecto
+    let vuelta = gltf::read_glb(&glb, gltf::GltfOptions::default()).unwrap();
+
+    // Las posiciones **deben** ser diferentes: escribimos mm/Z-up,
+    // pero leemos aplicando conversión mm→m y Z→Y.
+    // El original tiene z=3.0 mm en FORGE (Z-up), que en glb crudo sigue siendo 3.0
+    // En glb default, eso se interpreta como Y=3.0 en metros = 3000 mm en FORGE Y.
+    let mut hay_diferencia_positiva = false;
+    for (orig, leido) in original.positions.iter().zip(&vuelta.positions) {
+        if (orig - leido).length() > 1.0 {
+            hay_diferencia_positiva = true;
+            break;
+        }
+    }
+    assert!(
+        hay_diferencia_positiva,
+        "crudo() vs default() debería producir diferencias"
+    );
+
+    // Las normales también deben diferir por la permutación de ejes
+    let mut hay_diferencia_normal = false;
+    for (orig, leido) in original.normals.iter().zip(&vuelta.normals) {
+        if (orig - leido).length() > 0.01 {
+            hay_diferencia_normal = true;
+            break;
+        }
+    }
+    assert!(
+        hay_diferencia_normal,
+        "las normales deberían diferir con crudo vs default"
+    );
 }
 
 // ---------------------------------------------------------------------------
