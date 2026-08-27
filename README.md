@@ -27,6 +27,17 @@ subdividir ×2 → espejo → triangular       dominio DISCRETO
 glTF 2.0 · OBJ · documento .forge · biblioteca de activos
 ```
 
+Y el pilar de render, de punta a punta y sin GPU:
+
+```bash
+cargo run -p forge-runtime --example escena_demo
+cargo run -p forge-runtime -- /tmp/forge-demo/escena.forge --ppm salida.ppm --size 800x600
+```
+
+Escribe un `.forge` con tres cajas, lo vuelve a leer del disco con un almacén de
+blobs limpio —el mismo camino que recorrería otra máquina— y lo dibuja con el
+rasterizador por software.
+
 Lo que demuestra no es que cada pieza funcione —para eso están los tests— sino
 que **la identidad sobrevive el viaje**: la cara del chaflán que se selecciona en
 el sólido exacto sigue siendo localizable después de cruzar al dominio poligonal,
@@ -58,6 +69,8 @@ OpenCASCADE: [`docs/construir.md`](docs/construir.md).
 | `forge-param` | árbol de features, nombrado persistente, solver 2D | en pruebas |
 | `forge-script` | bus de comandos y host de Lua | en pruebas |
 | `forge-render-cpu` | rasterizador por software — la referencia sin GPU | en pruebas |
+| `forge-escena` | `Snapshot` → `DrawInstance`: la regla de qué se dibuja, una sola vez | ✅ |
+| `forge-runtime` | reproductor sin editor: lee un `.forge` del disco y lo dibuja | ✅ |
 | `forge-render` · `forge-ui` · `forge-kernel-occt` | wgpu, visor, OpenCASCADE | **sin verificar** |
 
 Las fronteras entre crates las hace cumplir `tests/arquitectura.rs`, que falla el
