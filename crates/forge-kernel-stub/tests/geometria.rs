@@ -487,6 +487,82 @@ fn booleano_caja_menos_caja_da_el_volumen_exacto() {
         .all(|f| matches!(f.provenance, TopoProvenance::SplitFrom { .. })));
 }
 
+/// El área de un booleano, que es lo que el test del volumen no puede ver.
+///
+/// Un resultado hecho de piezas sueltas tiene las caras de contacto por
+/// duplicado. Al volumen no le afecta: las dos copias tienen normal opuesta y se
+/// cancelan en el teorema de la divergencia. Al área sí, porque el área suma
+/// valores absolutos. Medido antes de la frontera por rejilla, con el volumen
+/// correcto en todos ellos y `is_valid()` sin quejarse en ninguno:
+///
+/// | caso                | antes | real |
+/// |---------------------|-------|------|
+/// | cubo menos esquina  |   816 |  600 |
+/// | union de dos cubos  |   872 |  720 |
+/// | cubo con hueco      |  1072 |  624 |
+#[test]
+fn el_area_de_un_booleano_no_cuenta_las_caras_de_contacto() {
+    let k = k();
+    let a = k.box_solid(DVec3::ZERO, DVec3::splat(10.0), f()).unwrap();
+    let b = k
+        .box_solid(DVec3::splat(6.0), DVec3::splat(12.0), f())
+        .unwrap();
+
+    // Cubo de 10 menos una esquina de 4: las tres caras que tocan la esquina
+    // pierden 4×4 cada una y aparecen tres caras nuevas de 4×4. Se compensa
+    // exacto, así que el área sigue siendo la del cubo.
+    let d = k.boolean(BoolOp::Difference, a, b, f()).unwrap();
+    assert_area(&k, d, 600.0, "diferencia");
+
+    // La esquina sola: un cubo de 4.
+    let i = k.boolean(BoolOp::Intersection, a, b, f()).unwrap();
+    assert_area(&k, i, 6.0 * 16.0, "interseccion");
+
+    // Unión. Del cubo grande sobreviven 3 caras enteras y 3 a las que el cubo
+    // pequeño tapa un cuadrado de 4×4: 3·100 + 3·84 = 552. Del pequeño, 3 caras
+    // enteras de 6×6 y 3 con un 4×4 tapado: 3·36 + 3·20 = 168. Total 720.
+    let u = k.boolean(BoolOp::Union, a, b, f()).unwrap();
+    assert_area(&k, u, 720.0, "union");
+
+    // El caso más exigente: un hueco **interior**, que obliga a `restar` a sacar
+    // las seis piezas y produce una segunda cáscara cerrada dentro del sólido,
+    // con las normales mirando hacia el hueco. 600 de fuera + 6·2² de dentro.
+    let dentro = k
+        .box_solid(DVec3::splat(4.0), DVec3::splat(6.0), f())
+        .unwrap();
+    let hueco = k.boolean(BoolOp::Difference, a, dentro, f()).unwrap();
+    assert!(
+        (k.mass_properties(hueco).unwrap().volume_mm3 - (1000.0 - 8.0)).abs() < 1e-9,
+        "volumen {}",
+        k.mass_properties(hueco).unwrap().volume_mm3
+    );
+    assert_area(&k, hueco, 600.0 + 6.0 * 4.0, "hueco interior");
+}
+
+/// Comprueba el área contra el valor calculado a mano y, además, que la malla
+/// esté cerrada: sin aristas de borde libre no puede haber ni caras que sobren
+/// ni agujeros por los que falte área.
+fn assert_area(k: &StubKernel, s: ShapeId, esperada: f64, que: &str) {
+    let m = k.mass_properties(s).unwrap();
+    assert!(
+        (m.area_mm2 - esperada).abs() < 1e-9,
+        "{que}: area {:.4}, esperada {esperada:.4}",
+        m.area_mm2
+    );
+    let r = k.is_valid(s).unwrap();
+    assert!(r.valid, "{que}: {:?}", r.problems);
+
+    let t = k
+        .tessellate(s, &TessellationParams::default())
+        .unwrap();
+    let libres = t
+        .edges
+        .iter()
+        .filter(|e| e.kind == EdgeKind::Boundary)
+        .count();
+    assert_eq!(libres, 0, "{que}: {libres} aristas de borde libre");
+}
+
 #[test]
 fn serializar_y_deserializar_conserva_la_geometria() {
     let k = k();

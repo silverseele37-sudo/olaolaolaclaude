@@ -522,26 +522,178 @@ pub fn booleano(
         }
     };
 
-    let mut verts = Vec::new();
-    let mut caras = Vec::new();
-    for (k, (caja_k, origen)) in piezas.iter().enumerate() {
-        let sub = caja(caja_k.min, caja_k.max, owner, |i| {
-            (
-                crate::poly::fnv(&[origen.mark, k as u64, i as u64]),
-                TopoProvenance::SplitFrom {
-                    original: *origen,
-                    piece: k as u32,
-                },
-            )
-        })?;
-        let base = verts.len() as u32;
-        verts.extend_from_slice(&sub.verts);
-        for c in sub.caras {
-            caras.push(Cara {
-                bucle: c.bucle.iter().map(|i| i + base).collect(),
-                ..c
-            });
+    frontera_de_la_union(&piezas, owner)
+}
+
+/// Construye la frontera de una unión de cajas disjuntas alineadas a ejes.
+///
+/// El camino obvio -- emitir cada pieza como una caja cerrada y concatenarlas --
+/// da el **volumen correcto** y el **área equivocada**. El volumen sale bien
+/// porque las caras de contacto entre dos piezas tienen normales opuestas y sus
+/// contribuciones al teorema de la divergencia se cancelan; el área no se
+/// cancela, se suma. Medido: un cubo de 10 menos una esquina de 4 daba 816 mm²
+/// cuando el valor real es 600, un 36 % de más, y `is_valid()` no veía nada raro
+/// porque cada caja por separado sí es una malla cerrada y correcta.
+///
+/// Tampoco vale con borrar los pares de caras coincidentes: las piezas que
+/// devuelve `restar` se tocan en **trozos** de cara, no en caras enteras. La
+/// pieza `x < c.min.x` es una losa de altura completa, y contra ella apoyan
+/// cuatro piezas más pequeñas. Buscar pares idénticos no encontraría ninguno.
+///
+/// Lo que sí funciona: comprimir coordenadas. Se toman todos los valores
+/// distintos de x, y, z que aparecen en los límites de las piezas y se forma una
+/// rejilla. Cada celda de esa rejilla está entera dentro o entera fuera del
+/// sólido -- por construcción, porque ninguna cara de ninguna pieza la
+/// atraviesa. Entonces la frontera es exactamente el conjunto de caras de celda
+/// llena que dan a celda vacía (o al exterior), y eso se enumera sin ambigüedad.
+///
+/// Sale una malla soldada (los vértices se comparten por índice de rejilla, sin
+/// tolerancias de por medio), cerrada y sin caras interiores. El precio es que
+/// una cara grande queda partida en las celdas que la componen: más caras de las
+/// mínimas. Se prefiere así a fusionarlas, porque fusionar coplanares vuelve a
+/// meter uniones en T -- una cara larga contra varias cortas -- y una unión en T
+/// deja aristas con una sola cara, o sea un sólido abierto disfrazado.
+fn frontera_de_la_union(piezas: &[(Aabb, StableId)], owner: FeatureId) -> KernelResult<Poly> {
+    // Coordenadas distintas por eje. Vienen de límites de cajas, así que los
+    // duplicados son bit a bit iguales; el `dedup` con tolerancia es por si
+    // acaso.
+    let eje = |f: fn(&Aabb) -> (f64, f64)| {
+        let mut v: Vec<f64> = piezas
+            .iter()
+            .flat_map(|(c, _)| {
+                let (a, b) = f(c);
+                [a, b]
+            })
+            .collect();
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v.dedup_by(|a, b| (*a - *b).abs() <= tol::CONFUSION_MM);
+        v
+    };
+    let xs = eje(|c| (c.min.x, c.max.x));
+    let ys = eje(|c| (c.min.y, c.max.y));
+    let zs = eje(|c| (c.min.z, c.max.z));
+    let (nx, ny, nz) = (xs.len() - 1, ys.len() - 1, zs.len() - 1);
+
+    // Este kernel solo hace caja contra caja, así que la rejilla es diminuta
+    // (a lo sumo 6 piezas). El tope es para que un cambio futuro reviente aquí
+    // en vez de asignar gigabytes en silencio.
+    if nx * ny * nz > 100_000 {
+        return Err(KernelError::Degenerate {
+            hint: format!("rejilla {nx}x{ny}x{nz} demasiado grande"),
+        });
+    }
+
+    // Qué pieza ocupa cada celda, por el centro. Las piezas son disjuntas, así
+    // que a lo sumo una.
+    let idx = |i: usize, j: usize, k: usize| (i * ny + j) * nz + k;
+    let mut ocupa = vec![None; nx * ny * nz];
+    for i in 0..nx {
+        for j in 0..ny {
+            for k in 0..nz {
+                let c = DVec3::new(
+                    (xs[i] + xs[i + 1]) * 0.5,
+                    (ys[j] + ys[j + 1]) * 0.5,
+                    (zs[k] + zs[k + 1]) * 0.5,
+                );
+                ocupa[idx(i, j, k)] = piezas.iter().position(|(caja_p, _)| {
+                    c.cmpge(caja_p.min).all() && c.cmple(caja_p.max).all()
+                });
+            }
         }
+    }
+    let lleno = |i: i64, j: i64, k: i64| -> bool {
+        i >= 0
+            && j >= 0
+            && k >= 0
+            && (i as usize) < nx
+            && (j as usize) < ny
+            && (k as usize) < nz
+            && ocupa[idx(i as usize, j as usize, k as usize)].is_some()
+    };
+
+    // Vértices bajo demanda, indexados por nodo de rejilla: dos celdas vecinas
+    // comparten los suyos por construcción, sin comparar coordenadas.
+    let mut verts: Vec<DVec3> = Vec::new();
+    let nodo_a_vert = &mut vec![u32::MAX; (nx + 1) * (ny + 1) * (nz + 1)];
+    let mut nodo = |verts: &mut Vec<DVec3>, i: usize, j: usize, k: usize| -> u32 {
+        let n = (i * (ny + 1) + j) * (nz + 1) + k;
+        if nodo_a_vert[n] == u32::MAX {
+            nodo_a_vert[n] = verts.len() as u32;
+            verts.push(DVec3::new(xs[i], ys[j], zs[k]));
+        }
+        nodo_a_vert[n]
+    };
+
+    // Los mismos seis bucles que `caja`, en los mismos índices locales, para no
+    // volver a razonar el sentido de giro: 0..7 son las esquinas de la celda con
+    // el bit 0 en x, el 1 en y y el 2 en z según el orden de `caja`.
+    const ESQUINAS: [[usize; 3]; 8] = [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 0, 1],
+        [1, 1, 1],
+        [0, 1, 1],
+    ];
+    // (desplazamiento al vecino, bucle local). Si el vecino está lleno, la cara
+    // es interior y no se emite.
+    const CARAS: [([i64; 3], [usize; 4]); 6] = [
+        ([0, 0, -1], [0, 3, 2, 1]),
+        ([0, 0, 1], [4, 5, 6, 7]),
+        ([0, -1, 0], [0, 1, 5, 4]),
+        ([0, 1, 0], [2, 3, 7, 6]),
+        ([1, 0, 0], [1, 2, 6, 5]),
+        ([-1, 0, 0], [0, 4, 7, 3]),
+    ];
+
+    let mut caras = Vec::new();
+    for i in 0..nx {
+        for j in 0..ny {
+            for k in 0..nz {
+                let Some(pieza) = ocupa[idx(i, j, k)] else {
+                    continue;
+                };
+                let origen = piezas[pieza].1;
+                for (cara, (d, bucle)) in CARAS.iter().enumerate() {
+                    if lleno(i as i64 + d[0], j as i64 + d[1], k as i64 + d[2]) {
+                        continue;
+                    }
+                    let bucle = bucle
+                        .iter()
+                        .map(|&e| {
+                            let o = ESQUINAS[e];
+                            nodo(&mut verts, i + o[0], j + o[1], k + o[2])
+                        })
+                        .collect();
+                    caras.push(Cara {
+                        id: StableId {
+                            origin: owner,
+                            class: TopoClass::Face,
+                            mark: crate::poly::fnv(&[
+                                origen.mark,
+                                pieza as u64,
+                                cara as u64,
+                                i as u64,
+                                j as u64,
+                                k as u64,
+                            ]),
+                        },
+                        prov: TopoProvenance::SplitFrom {
+                            original: origen,
+                            piece: pieza as u32,
+                        },
+                        bucle,
+                    });
+                }
+            }
+        }
+    }
+    if caras.is_empty() {
+        return Err(KernelError::Degenerate {
+            hint: "el resultado del booleano es vacio".into(),
+        });
     }
     Ok(Poly {
         verts,
