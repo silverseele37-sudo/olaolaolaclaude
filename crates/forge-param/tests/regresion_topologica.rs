@@ -715,3 +715,133 @@ fn una_cadena_de_fillet_y_chamfer_sobrevive_intacta_un_cambio_de_cota_dos_nivele
     );
     assert_eq!(resolucion_sonda.valor(), Some(referencia_sonda.objetivo));
 }
+
+// ---------------------------------------------------------------------------
+// Sección 2 — número de lados de un polígono, en las dos direcciones.
+// ---------------------------------------------------------------------------
+
+/// **Límite del nombrado, documentado.** Aumentar el número de lados de un
+/// polígono conserva la genealogía por índice de perfil, aunque la arista
+/// física que ese índice describe pase a ser otra completamente distinta.
+/// No es un fallo del resolver: la capa 1 es, por diseño, identidad por
+/// índice estructural, no por posición en el espacio (comentario grande al
+/// principio del archivo). Pero es exactamente la clase de sorpresa
+/// silenciosa contra la que ADR-0002 previene con la capa 2 — salvo que
+/// aquí la capa 1 nunca llega a ceder el turno, porque el índice 3 sigue
+/// existiendo. Vale la pena que quede escrito y comprobado, no solo asumido.
+#[test]
+fn aumentar_los_lados_de_un_poligono_conserva_la_identidad_por_indice_aunque_la_arista_fisica_cambie(
+) {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 6, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let cara0 = cara_lateral(&topo0, 3).expect("hexagono: cara lateral 3");
+    let referencia = TopoRef::capturar(extrude_id, &cara0);
+
+    if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+        s.modelo.points = puntos_poligono(8, 10.0);
+        s.perfil = (0..8u32).map(forge_kernel_api::sketch::PointId).collect();
+    }
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    let resolucion = Resolver::default().resolver(&referencia, &topo1);
+
+    assert!(
+        resolucion.exacta(),
+        "se esperaba genealogia exacta por indice, salio {:?}",
+        resolucion.binding
+    );
+    assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+
+    // Y sin embargo: hexagono, lado 3, normal a 210 grados; octogono, lado
+    // 3, normal a 157.5 grados. Mas de 50 grados de diferencia: claramente
+    // otra arista fisica, con la misma identidad.
+    let cara1 = cara_lateral(&topo1, 3).expect("octogono: cara lateral 3");
+    let cos = normal_de(&cara0.signature).dot(normal_de(&cara1.signature));
+    assert!(
+        cos < 0.65,
+        "las dos caras deberian mirar a sitios bien distintos, cos={cos}"
+    );
+}
+
+/// El mismo tipo de edición, en la dirección que sí rompe la genealogía:
+/// reducir un octógono a un hexágono hace que el índice 7 deje de existir
+/// (solo quedan 0..5). No es un caso adversarial como el de
+/// `control_negativo_naming.rs` (que gira el triángulo a propósito para
+/// garantizar la ruptura): aquí el polígono resultante queda en su
+/// orientación por defecto, y aun así hay una única cara del hexágono cuya
+/// normal cae dentro del margen — la capa 2 la encuentra sola, sin ambigüedad.
+///
+/// Derivación (radio 10, altura 5, sin rotar nada):
+/// - octógono, lado 7: normal a 337.5° (medio camino entre los vértices 7 y 0).
+/// - hexágono, lado 5: normal a 330°. Diferencia 7.5°, cos ≈ 0.991.
+/// - el siguiente lado más cercano (lado 0, a 30°) está a 52.5° de distancia
+///   angular, cos ≈ 0.609 — por debajo del coseno mínimo (0.90): ni siquiera
+///   entra en la lista de candidatas. Una sola candidata, sin ambigüedad
+///   posible.
+#[test]
+fn reducir_un_octogono_a_hexagono_revincula_por_firma_a_la_cara_geometricamente_correcta() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 8, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let cara0 = cara_lateral(&topo0, 7).expect("octogono: cara lateral 7");
+    let referencia = TopoRef::capturar(extrude_id, &cara0);
+
+    if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+        s.modelo.points = puntos_poligono(6, 10.0);
+        s.perfil = (0..6u32).map(forge_kernel_api::sketch::PointId).collect();
+    }
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    let resolucion = Resolver::default().resolver(&referencia, &topo1);
+
+    let esperada = cara_lateral(&topo1, 5).expect("hexagono: cara lateral 5");
+    match resolucion.binding {
+        Binding::Rebound { value, .. } => assert_eq!(value, esperada.id),
+        otro => panic!("se esperaba Rebound a la cara lateral 5, salio {otro:?}"),
+    }
+    assert!(!resolucion.exacta());
+    assert!(!resolucion.rota());
+}
+
+/// Reducir aún más — de octógono a triángulo, en sus ángulos por defecto,
+/// sin girarlo a propósito — puede dejar sin candidata orientada a una cara
+/// que antes existía. Se elige el lado 5 (no el 2) a propósito: con `n=3`
+/// solo sobreviven por índice los lados 0, 1 y 2, así que hace falta uno que
+/// desaparezca de la lista **y además** quede mal orientado, para que sea la
+/// capa 2 —no la capa 1— la que decida. La normal del octógono, lado 5,
+/// apunta a 247.5°; las tres normales del triángulo (vértices en 0°, 120°,
+/// 240° ⇒ normales de lado a 60°, 180°, 300°) quedan todas a más de 52° de
+/// distancia angular, y cos(52.5°) ≈ 0.609 no llega al coseno mínimo (0.90).
+/// Ninguna candidata pasa el filtro de orientación: la referencia se rompe,
+/// tal como `naming.rs` dice que debe pasar antes que inventar una respuesta.
+#[test]
+fn reducir_un_octogono_a_triangulo_sin_candidata_orientada_rompe_la_referencia() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 8, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let cara0 = cara_lateral(&topo0, 5).expect("octogono: cara lateral 5");
+    let referencia = TopoRef::capturar(extrude_id, &cara0);
+
+    if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+        s.modelo.points = puntos_poligono(3, 10.0);
+        s.perfil = (0..3u32).map(forge_kernel_api::sketch::PointId).collect();
+    }
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    let resolucion = Resolver::default().resolver(&referencia, &topo1);
+
+    assert!(
+        matches!(resolucion.binding, Binding::Broken),
+        "se esperaba Binding::Broken, salio {:?} (puntuacion {:?})",
+        resolucion.binding,
+        resolucion.puntuacion
+    );
+    assert_eq!(resolucion.valor(), None);
+}
