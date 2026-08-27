@@ -21,6 +21,7 @@ use forge_math::{Aabb, DVec2, DVec3};
 
 pub mod gltf;
 pub mod obj;
+pub mod usd;
 
 #[derive(Debug, thiserror::Error)]
 pub enum InteropError {

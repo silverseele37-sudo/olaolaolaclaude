@@ -146,6 +146,16 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
                 "forge-material",
             ],
         ),
+        // El runtime depende del CONTRATO de render, no de una implementacion
+        // concreta. Esa es justamente la propiedad que lo hace valioso: carga el
+        // mismo documento y lo renderiza con el rasterizador por software o con
+        // wgpu sin cambiar una linea, que es lo que demuestra que el render no
+        // depende del editor.
+        //
+        // La tabla decia `forge-render` a secas y un agente choco contra ello.
+        // Tenia razon: la frontera estaba mal descrita, no el codigo. Ese es el
+        // valor de un guardia -- obliga a decidir la regla en vez de dejar que
+        // se decida sola con el primer `use`.
         (
             "forge-runtime",
             &[
@@ -153,7 +163,9 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
                 "forge-store",
                 "forge-doc",
                 "forge-io",
+                "forge-render-api",
                 "forge-render",
+                "forge-render-cpu",
                 "forge-material",
             ],
         ),

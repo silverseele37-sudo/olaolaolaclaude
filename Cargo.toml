@@ -46,6 +46,7 @@ forge-assets       = { path = "crates/forge-assets" }
 forge-script       = { path = "crates/forge-script" }
 forge-render-cpu   = { path = "crates/forge-render-cpu" }
 forge-material     = { path = "crates/forge-material" }
+forge-runtime      = { path = "crates/forge-runtime" }
 
 glam      = { version = "0.30", features = ["serde"] }
 blake3    = "1"

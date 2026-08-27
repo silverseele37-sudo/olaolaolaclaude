@@ -25,8 +25,26 @@ fn un_ciclo_directo_entre_dos_nodos_produce_error_y_no_cuelga() {
     let b = fid(2);
     // A extruye el perfil de B, B extruye el perfil de A: ciclo de longitud 2.
     let nodos = vec![
-        FeatureNode::con_id(a, "a", NodeKind::Extrude { perfil: b, direccion: DVec3::Z, distancia_mm: 1.0, simetrico: false }),
-        FeatureNode::con_id(b, "b", NodeKind::Extrude { perfil: a, direccion: DVec3::Z, distancia_mm: 1.0, simetrico: false }),
+        FeatureNode::con_id(
+            a,
+            "a",
+            NodeKind::Extrude {
+                perfil: b,
+                direccion: DVec3::Z,
+                distancia_mm: 1.0,
+                simetrico: false,
+            },
+        ),
+        FeatureNode::con_id(
+            b,
+            "b",
+            NodeKind::Extrude {
+                perfil: a,
+                direccion: DVec3::Z,
+                distancia_mm: 1.0,
+                simetrico: false,
+            },
+        ),
     ];
     let tree = FeatureTree::desde_nodos(nodos);
 
@@ -37,7 +55,11 @@ fn un_ciclo_directo_entre_dos_nodos_produce_error_y_no_cuelga() {
         Err(ParamError::Ciclo(implicados)) => {
             let mut v = implicados;
             v.sort();
-            assert_eq!(v, vec![a, b], "el ciclo deberia implicar exactamente a los dos nodos");
+            assert_eq!(
+                v,
+                vec![a, b],
+                "el ciclo deberia implicar exactamente a los dos nodos"
+            );
         }
         otro => panic!("se esperaba ParamError::Ciclo, salio {otro:?}"),
     }
@@ -67,10 +89,45 @@ fn un_ciclo_que_pasa_por_un_booleano_se_detecta_y_no_arrastra_al_nodo_sano() {
     //                             entrada de b, y b como entrada de c)
     // sano -> extrude(perfil = a)  <- depende del ciclo pero no es parte de el
     let nodos = vec![
-        FeatureNode::con_id(a, "a", NodeKind::Extrude { perfil: c, direccion: DVec3::Z, distancia_mm: 1.0, simetrico: false }),
-        FeatureNode::con_id(b, "b", NodeKind::Extrude { perfil: a, direccion: DVec3::Z, distancia_mm: 1.0, simetrico: false }),
-        FeatureNode::con_id(c, "c", NodeKind::Boolean { op: BoolOp::Union, a, b }),
-        FeatureNode::con_id(sano, "sano", NodeKind::Extrude { perfil: a, direccion: DVec3::Z, distancia_mm: 1.0, simetrico: false }),
+        FeatureNode::con_id(
+            a,
+            "a",
+            NodeKind::Extrude {
+                perfil: c,
+                direccion: DVec3::Z,
+                distancia_mm: 1.0,
+                simetrico: false,
+            },
+        ),
+        FeatureNode::con_id(
+            b,
+            "b",
+            NodeKind::Extrude {
+                perfil: a,
+                direccion: DVec3::Z,
+                distancia_mm: 1.0,
+                simetrico: false,
+            },
+        ),
+        FeatureNode::con_id(
+            c,
+            "c",
+            NodeKind::Boolean {
+                op: BoolOp::Union,
+                a,
+                b,
+            },
+        ),
+        FeatureNode::con_id(
+            sano,
+            "sano",
+            NodeKind::Extrude {
+                perfil: a,
+                direccion: DVec3::Z,
+                distancia_mm: 1.0,
+                simetrico: false,
+            },
+        ),
     ];
     let tree = FeatureTree::desde_nodos(nodos);
 

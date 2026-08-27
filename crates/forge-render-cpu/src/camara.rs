@@ -60,21 +60,38 @@ impl Camara {
         }
         let adelante = adelante.normalize();
 
-        let mut arriba = if c.up.length_squared() < 1e-18 { DVec3::Z } else { c.up.normalize() };
+        let mut arriba = if c.up.length_squared() < 1e-18 {
+            DVec3::Z
+        } else {
+            c.up.normalize()
+        };
         // `up` paralelo a la vista (mirar en vertical desde arriba) degenera el
         // producto vectorial. Se elige otra referencia en vez de dar NaN.
         if arriba.cross(adelante).length_squared() < 1e-12 {
-            arriba = if adelante.z.abs() > 0.9 { DVec3::Y } else { DVec3::Z };
+            arriba = if adelante.z.abs() > 0.9 {
+                DVec3::Y
+            } else {
+                DVec3::Z
+            };
         }
 
         let near = c.near_mm.max(1e-6);
         let far = c.far_mm.max(near * (1.0 + 1e-6));
         let fov = c.fov_y_rad.clamp(1e-4, std::f64::consts::PI - 1e-4);
-        let aspecto = if aspecto.is_finite() && aspecto > 1e-9 { aspecto } else { 1.0 };
+        let aspecto = if aspecto.is_finite() && aspecto > 1e-9 {
+            aspecto
+        } else {
+            1.0
+        };
 
         let vista = DMat4::look_at_rh(c.eye, c.eye + adelante, arriba);
         let proyeccion = DMat4::perspective_rh(fov, aspecto, near, far);
-        Camara { vista, proyeccion, vista_proyeccion: proyeccion * vista, ojo: c.eye }
+        Camara {
+            vista,
+            proyeccion,
+            vista_proyeccion: proyeccion * vista,
+            ojo: c.eye,
+        }
     }
 
     /// Los 6 planos del frustum en mundo.
@@ -90,11 +107,21 @@ impl Camara {
         // nombrar su tipo para sumarlas ni para leer .x/.y/.z/.w (ver la nota
         // de `proyectar_homogeneo`).
         let filas = [r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2];
-        let mut out = [Plano { normal: DVec3::ZERO, d: 0.0 }; 6];
+        let mut out = [Plano {
+            normal: DVec3::ZERO,
+            d: 0.0,
+        }; 6];
         for (i, q) in filas.into_iter().enumerate() {
             let normal = DVec3::new(q.x, q.y, q.z);
             let n = normal.length();
-            out[i] = if n > 1e-12 { Plano { normal: normal / n, d: q.w / n } } else { Plano { normal, d: q.w } };
+            out[i] = if n > 1e-12 {
+                Plano {
+                    normal: normal / n,
+                    d: q.w / n,
+                }
+            } else {
+                Plano { normal, d: q.w }
+            };
         }
         out
     }
@@ -143,5 +170,7 @@ pub fn facing(area: f32) -> Facing {
 /// frustum), nunca rechaza una que sí. El error en esa dirección cuesta píxeles;
 /// en la otra, cuesta geometría que desaparece.
 pub fn fuera_del_frustum(planos: &[Plano; 6], esquinas: &[DVec3; 8]) -> bool {
-    planos.iter().any(|p| esquinas.iter().all(|&c| p.distancia(c) < 0.0))
+    planos
+        .iter()
+        .any(|p| esquinas.iter().all(|&c| p.distancia(c) < 0.0))
 }

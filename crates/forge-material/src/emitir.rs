@@ -19,7 +19,11 @@ use crate::analisis::{tipo_salida, Analisis, Entrada};
 /// `Vec` con un orden fijo, nunca un `HashMap` u otra colección cuyo orden de
 /// iteración pudiera variar. Sin esto, "generar el mismo grafo dos veces da el
 /// mismo texto" dejaría de cumplirse y no habría caché de shaders posible.
-pub(crate) fn emitir(graph: &MaterialGraph, analisis: &Analisis, nodos: &HashMap<u32, &Node>) -> String {
+pub(crate) fn emitir(
+    graph: &MaterialGraph,
+    analisis: &Analisis,
+    nodos: &HashMap<u32, &Node>,
+) -> String {
     let (uv, normal, position) = parametros_necesarios(analisis, nodos);
 
     let mut parametros = Vec::new();
@@ -43,7 +47,11 @@ pub(crate) fn emitir(graph: &MaterialGraph, analisis: &Analisis, nodos: &HashMap
     w.push_str("    roughness: f32,\n");
     w.push_str("    emissive: vec3<f32>,\n");
     w.push_str("}\n\n");
-    let _ = writeln!(w, "fn material_surface({}) -> SurfaceProperties {{", parametros.join(", "));
+    let _ = writeln!(
+        w,
+        "fn material_surface({}) -> SurfaceProperties {{",
+        parametros.join(", ")
+    );
 
     for &id in &analisis.orden {
         let nodo = nodos[&id];

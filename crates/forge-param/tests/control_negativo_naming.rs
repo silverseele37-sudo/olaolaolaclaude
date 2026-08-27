@@ -31,7 +31,15 @@ fn una_cara_que_desaparece_de_verdad_sale_binding_broken() {
     let extrude_id = fid(2);
 
     // --- construcción inicial: octógono, capturamos la cara lateral 7 ---
-    let mut tree = arbol_extrude_poligono(sketch_id, extrude_id, 8, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let mut tree = arbol_extrude_poligono(
+        sketch_id,
+        extrude_id,
+        8,
+        10.0,
+        Plano::default(),
+        DVec3::Z,
+        5.0,
+    );
     let outcome = evaluar(&k, &tree).unwrap();
     let shape0 = outcome.shape(extrude_id).unwrap();
     let topo0 = k.topology(shape0).unwrap();
@@ -39,7 +47,10 @@ fn una_cara_que_desaparece_de_verdad_sale_binding_broken() {
     let referencia = TopoRef::capturar(extrude_id, &cara7);
     // Control de cordura: una cara lateral de un prisma tiene normal en el
     // plano XY (perpendicular al eje de extrusion), nunca alineada con Z.
-    assert!(referencia.firma.normal_q[2].abs() < 50, "la cara 7 no deberia mirar hacia Z");
+    assert!(
+        referencia.firma.normal_q[2].abs() < 50,
+        "la cara 7 no deberia mirar hacia Z"
+    );
 
     // --- edicion aguas arriba: el sketch pasa a ser un triangulo girado ---
     let angulos = [15.0, 135.0, 255.0];
@@ -53,8 +64,14 @@ fn una_cara_que_desaparece_de_verdad_sale_binding_broken() {
     let topo1 = k.topology(shape1).unwrap();
 
     // Capa 1: el indice 7 no existe con un triangulo.
-    assert!(cara_lateral(&topo1, 7).is_none(), "un triangulo no deberia tener cara de indice 7");
-    assert!(!topo1.faces.iter().any(|f| f.id == referencia.objetivo), "el StableId original no deberia sobrevivir");
+    assert!(
+        cara_lateral(&topo1, 7).is_none(),
+        "un triangulo no deberia tener cara de indice 7"
+    );
+    assert!(
+        !topo1.faces.iter().any(|f| f.id == referencia.objetivo),
+        "el StableId original no deberia sobrevivir"
+    );
 
     // Capa 2 + resultado: sin genealogia y sin firma parecida, Broken.
     let resolucion = Resolver::default().resolver(&referencia, &topo1);
@@ -88,7 +105,15 @@ fn el_arbol_no_se_evalua_con_una_referencia_rota() {
     let extrude_id = fid(2);
     let chamfer_id = fid(3);
 
-    let mut tree = arbol_extrude_poligono(sketch_id, extrude_id, 8, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let mut tree = arbol_extrude_poligono(
+        sketch_id,
+        extrude_id,
+        8,
+        10.0,
+        Plano::default(),
+        DVec3::Z,
+        5.0,
+    );
     let _referencia = agregar_chamfer_sobre(&k, &mut tree, extrude_id, chamfer_id, 0.5, |topo| {
         cara_lateral(topo, 7).expect("cara lateral 7")
     });

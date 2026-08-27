@@ -103,6 +103,9 @@ pub(crate) fn decode_store<C: Component>(bytes: &[u8]) -> Result<Arc<dyn AnyStor
     Ok(Arc::new(TypedStore { map }))
 }
 
+/// Función decodificadora de un almacén de componentes.
+type DecoderFn = fn(&[u8]) -> Result<Arc<dyn AnyStore>>;
+
 /// Traduce el nombre de un componente del archivo a un almacén tipado.
 ///
 /// Sin registro no hay carga: un documento que menciona un componente
@@ -110,7 +113,7 @@ pub(crate) fn decode_store<C: Component>(bytes: &[u8]) -> Result<Arc<dyn AnyStor
 /// Ignorarlo perdería datos del usuario al volver a guardar.
 #[derive(Default)]
 pub struct ComponentRegistry {
-    decoders: BTreeMap<&'static str, fn(&[u8]) -> Result<Arc<dyn AnyStore>>>,
+    decoders: BTreeMap<&'static str, DecoderFn>,
 }
 
 impl ComponentRegistry {

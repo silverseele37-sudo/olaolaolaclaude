@@ -45,7 +45,11 @@ pub struct CpuMesh {
 
 impl CpuMesh {
     pub fn nueva(positions: Vec<DVec3>, normals: Vec<DVec3>, indices: Vec<u32>) -> Self {
-        CpuMesh { positions, normals, indices }
+        CpuMesh {
+            positions,
+            normals,
+            indices,
+        }
     }
 
     /// Caja del contenido.
@@ -77,7 +81,7 @@ impl CpuMesh {
     /// Coherencia mínima: índices dentro de rango, múltiplo de 3, y normales
     /// ausentes o con una por vértice.
     pub fn es_valida(&self) -> bool {
-        if self.indices.len() % 3 != 0 {
+        if !self.indices.len().is_multiple_of(3) {
             return false;
         }
         if !self.normals.is_empty() && self.normals.len() != self.positions.len() {
@@ -146,7 +150,11 @@ pub struct CpuMaterial {
 
 impl Default for CpuMaterial {
     fn default() -> Self {
-        CpuMaterial { base_color: [0.8, 0.8, 0.8], roughness: 0.5, metallic: 0.0 }
+        CpuMaterial {
+            base_color: [0.8, 0.8, 0.8],
+            roughness: 0.5,
+            metallic: 0.0,
+        }
     }
 }
 
@@ -181,7 +189,10 @@ impl TablaDeMateriales {
     }
 
     pub fn con_defecto(m: CpuMaterial) -> Self {
-        TablaDeMateriales { tabla: Default::default(), por_defecto: m }
+        TablaDeMateriales {
+            tabla: Default::default(),
+            por_defecto: m,
+        }
     }
 
     pub fn insertar(&mut self, id: MaterialId, m: CpuMaterial) {

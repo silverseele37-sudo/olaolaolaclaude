@@ -39,7 +39,7 @@ pub const GRIS_MEDIO: f32 = 0.18;
 /// Inset (Rec.709 lineal → AgX comprimido), por filas.
 pub const INSET: [[f32; 3]; 3] = [
     [0.856_627_15, 0.137_318_97, 0.111_898_21],
-    [0.095_121_24, 0.761_242_0, 0.076_799_42],
+    [0.095_121_24, 0.761_242, 0.076_799_42],
     [0.048_251_606, 0.101_439_04, 0.811_302_4],
 ];
 
@@ -138,7 +138,11 @@ pub fn contraste_analitico_con(x: f32, pendiente: f32, pie: f32, hombro: f32) ->
     let x = x.clamp(0.0, 1.0);
     let s_pie = -escala(PIVOTE_X, PIVOTE_Y, pendiente, pie);
     let s_hombro = escala(1.0 - PIVOTE_X, 1.0 - PIVOTE_Y, pendiente, hombro);
-    let (s, p) = if x < PIVOTE_X { (s_pie, pie) } else { (s_hombro, hombro) };
+    let (s, p) = if x < PIVOTE_X {
+        (s_pie, pie)
+    } else {
+        (s_hombro, hombro)
+    };
     let t = pendiente * (x - PIVOTE_X) / s;
     (s * hiperbolica(t, p) + PIVOTE_Y).clamp(0.0, 1.0)
 }
@@ -176,7 +180,11 @@ pub fn agx(rgb: [f32; 3]) -> [f32; 3] {
     let o = mul3(&OUTSET, c);
     // El resultado del outset está en un espacio con gamma ~2.2 implícita; se
     // linealiza para que la OETF de salida no aplique la corrección dos veces.
-    [o[0].max(0.0).powf(2.2), o[1].max(0.0).powf(2.2), o[2].max(0.0).powf(2.2)]
+    [
+        o[0].max(0.0).powf(2.2),
+        o[1].max(0.0).powf(2.2),
+        o[2].max(0.0).powf(2.2),
+    ]
 }
 
 /// OETF de sRGB. Separada de `agx` a propósito: el rasterizador escribe RGBA8

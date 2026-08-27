@@ -285,9 +285,20 @@ pub fn rasterizar<F: FnMut(usize, Fragmento)>(
                     * w_frag;
             }
             lienzo.profundidad[i] = z;
-            lienzo.cobertura[i] =
-                if cara == Facing::Trasera { Cobertura::Trasera } else { Cobertura::Frontal };
-            emitir(i, Fragmento { z, rel, normal: nrm, cara });
+            lienzo.cobertura[i] = if cara == Facing::Trasera {
+                Cobertura::Trasera
+            } else {
+                Cobertura::Frontal
+            };
+            emitir(
+                i,
+                Fragmento {
+                    z,
+                    rel,
+                    normal: nrm,
+                    cara,
+                },
+            );
         }
     }
 }

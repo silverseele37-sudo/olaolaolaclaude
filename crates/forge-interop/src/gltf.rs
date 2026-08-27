@@ -17,11 +17,11 @@
 //! especificación**. Un exportador que incumple el estándar en silencio traslada
 //! el problema a quien recibe el archivo.
 
-use forge_math::DVec3;
+use forge_math::{DVec2, DVec3};
 use serde_json::{json, Value};
 use std::path::Path;
 
-use crate::{z_up_to_y_up, InteropError, Result, TriangleSoup};
+use crate::{y_up_to_z_up, z_up_to_y_up, InteropError, Result, TriangleSoup};
 
 const GLB_MAGIC: u32 = 0x4654_6C67; // "glTF"
 const GLB_VERSION: u32 = 2;
@@ -296,4 +296,417 @@ pub fn glb_json(glb: &[u8]) -> Result<Value> {
         });
     }
     serde_json::from_slice(&glb[20..fin]).map_err(|e| InteropError::Json(e.to_string()))
+}
+
+/// Lee un `.glb` y devuelve la malla.
+///
+/// # Conversiones inversas
+/// - Si el glTF fue generado con Y arriba, lo convierte de vuelta a Z arriba.
+/// - Si el glTF fue generado en metros, lo convierte de vuelta a milímetros.
+///
+/// La ida y vuelta (escribir → leer) debe cerrar exacta.
+pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
+    // Parsear header y verificar estructura
+    if bytes.len() < 20 {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "glb demasiado corto".into(),
+        });
+    }
+
+    let leer_u32 = |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+
+    if leer_u32(0) != GLB_MAGIC {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "magic no es glTF".into(),
+        });
+    }
+    if leer_u32(4) != GLB_VERSION {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "version no es 2".into(),
+        });
+    }
+
+    let total_len = leer_u32(8) as usize;
+    if total_len != bytes.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "longitud declarada no coincide con el archivo".into(),
+        });
+    }
+
+    // Leer JSON chunk
+    let json_len = leer_u32(12) as usize;
+    if leer_u32(16) != CHUNK_JSON {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "el primer chunk no es JSON".into(),
+        });
+    }
+    let json_fin = 20 + json_len;
+    if json_fin > bytes.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "chunk JSON truncado".into(),
+        });
+    }
+
+    let json: Value = serde_json::from_slice(&bytes[20..json_fin])
+        .map_err(|e| InteropError::Json(e.to_string()))?;
+
+    // Leer BIN chunk
+    if json_fin + 8 > bytes.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "header de BIN chunk truncado".into(),
+        });
+    }
+
+    let bin_len = leer_u32(json_fin) as usize;
+    if leer_u32(json_fin + 4) != CHUNK_BIN {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "el segundo chunk no es BIN".into(),
+        });
+    }
+
+    let bin_start = json_fin + 8;
+    let bin_end = bin_start + bin_len;
+    if bin_end > bytes.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "chunk BIN truncado".into(),
+        });
+    }
+
+    let buffer = &bytes[bin_start..bin_end];
+
+    // Extraer accesores y bufferViews del JSON
+    let accessors = json["accessors"].as_array()
+        .ok_or_else(|| InteropError::Malformed {
+            line: 0,
+            detail: "accessors no es un array".into(),
+        })?;
+
+    let buffer_views = json["bufferViews"].as_array()
+        .ok_or_else(|| InteropError::Malformed {
+            line: 0,
+            detail: "bufferViews no es un array".into(),
+        })?;
+
+    // Encontrar los índices de POSITION, NORMAL, TEXCOORD_0 e índices
+    let primitives = json["meshes"][0]["primitives"].as_array()
+        .and_then(|p| p.get(0))
+        .ok_or_else(|| InteropError::InvalidMesh("no hay primitives".into()))?;
+
+    let attrs = primitives["attributes"].as_object()
+        .ok_or_else(|| InteropError::InvalidMesh("no hay attributes".into()))?;
+
+    let idx_accessor_idx = primitives["indices"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("no hay índices".into()))?
+        as usize;
+
+    let pos_idx = attrs.get("POSITION")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| InteropError::InvalidMesh("no hay POSITION".into()))?
+        as usize;
+
+    let normal_idx = attrs.get("NORMAL")
+        .and_then(|v| v.as_u64())
+        .map(|i| i as usize);
+
+    let uv_idx = attrs.get("TEXCOORD_0")
+        .and_then(|v| v.as_u64())
+        .map(|i| i as usize);
+
+    // Leer datos de accesores
+    let mut soup = TriangleSoup::default();
+    soup.name = json["meshes"][0]["name"]
+        .as_str()
+        .unwrap_or("malla")
+        .to_string();
+
+    // Leer POSITION
+    read_positions(&mut soup, buffer, &accessors[pos_idx], buffer_views)?;
+
+    // Leer NORMAL si existe
+    if let Some(ni) = normal_idx {
+        read_normals(&mut soup, buffer, &accessors[ni], buffer_views)?;
+    }
+
+    // Leer TEXCOORD_0 si existe
+    if let Some(ui) = uv_idx {
+        read_uvs(&mut soup, buffer, &accessors[ui], buffer_views)?;
+    }
+
+    // Leer índices
+    read_indices(&mut soup, buffer, &accessors[idx_accessor_idx], buffer_views)?;
+
+    soup.validate()?;
+    Ok(soup)
+}
+
+/// Lee posiciones desde el accessor. Invierte las conversiones.
+fn read_positions(
+    soup: &mut TriangleSoup,
+    buffer: &[u8],
+    accessor: &Value,
+    buffer_views: &[Value],
+) -> Result<()> {
+    let buffer_view_idx = accessor["bufferView"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("POSITION sin bufferView".into()))?
+        as usize;
+
+    let buffer_view = buffer_views.get(buffer_view_idx)
+        .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
+
+    let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
+    let byte_length = buffer_view["byteLength"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
+        as usize;
+
+    let component_type = accessor["componentType"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
+
+    let count = accessor["count"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
+        as usize;
+
+    if component_type != COMPONENT_FLOAT as u64 {
+        return Err(InteropError::Unsupported("componentType no es float32"));
+    }
+
+    if byte_offset + byte_length > buffer.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "POSITION data truncado".into(),
+        });
+    }
+
+    let data = &buffer[byte_offset..byte_offset + byte_length];
+
+    for i in 0..count {
+        let off = i * 12; // 3 floats × 4 bytes
+        if off + 12 > data.len() {
+            return Err(InteropError::Malformed {
+                line: 0,
+                detail: "POSITION data truncado".into(),
+            });
+        }
+
+        let x = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
+        let y = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]]) as f64;
+
+        // Invertir conversiones: Y-up → Z-up, metros → milímetros
+        let v = DVec3::new(x, y, z);
+        let v = y_up_to_z_up(v);
+        let v = v * 1000.0;
+
+        soup.positions.push(v);
+    }
+
+    Ok(())
+}
+
+/// Lee normales desde el accessor. Invierte la rotación de ejes.
+fn read_normals(
+    soup: &mut TriangleSoup,
+    buffer: &[u8],
+    accessor: &Value,
+    buffer_views: &[Value],
+) -> Result<()> {
+    let buffer_view_idx = accessor["bufferView"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("NORMAL sin bufferView".into()))?
+        as usize;
+
+    let buffer_view = buffer_views.get(buffer_view_idx)
+        .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
+
+    let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
+    let byte_length = buffer_view["byteLength"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
+        as usize;
+
+    let component_type = accessor["componentType"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
+
+    let count = accessor["count"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
+        as usize;
+
+    if component_type != COMPONENT_FLOAT as u64 {
+        return Err(InteropError::Unsupported("componentType no es float32"));
+    }
+
+    if byte_offset + byte_length > buffer.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "NORMAL data truncado".into(),
+        });
+    }
+
+    let data = &buffer[byte_offset..byte_offset + byte_length];
+
+    for i in 0..count {
+        let off = i * 12;
+        if off + 12 > data.len() {
+            return Err(InteropError::Malformed {
+                line: 0,
+                detail: "NORMAL data truncado".into(),
+            });
+        }
+
+        let x = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
+        let y = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]]) as f64;
+
+        // Invertir rotación: Y-up → Z-up
+        let v = DVec3::new(x, y, z);
+        let v = y_up_to_z_up(v);
+
+        soup.normals.push(v);
+    }
+
+    Ok(())
+}
+
+/// Lee UVs desde el accessor.
+fn read_uvs(
+    soup: &mut TriangleSoup,
+    buffer: &[u8],
+    accessor: &Value,
+    buffer_views: &[Value],
+) -> Result<()> {
+    let buffer_view_idx = accessor["bufferView"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("TEXCOORD_0 sin bufferView".into()))?
+        as usize;
+
+    let buffer_view = buffer_views.get(buffer_view_idx)
+        .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
+
+    let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
+    let byte_length = buffer_view["byteLength"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
+        as usize;
+
+    let component_type = accessor["componentType"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
+
+    let count = accessor["count"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
+        as usize;
+
+    if component_type != COMPONENT_FLOAT as u64 {
+        return Err(InteropError::Unsupported("componentType no es float32"));
+    }
+
+    if byte_offset + byte_length > buffer.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "TEXCOORD_0 data truncado".into(),
+        });
+    }
+
+    let data = &buffer[byte_offset..byte_offset + byte_length];
+
+    for i in 0..count {
+        let off = i * 8; // 2 floats × 4 bytes
+        if off + 8 > data.len() {
+            return Err(InteropError::Malformed {
+                line: 0,
+                detail: "TEXCOORD_0 data truncado".into(),
+            });
+        }
+
+        let u = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
+        let v = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+
+        soup.uvs.push(DVec2::new(u, v));
+    }
+
+    Ok(())
+}
+
+/// Lee índices desde el accessor. Soporta u16 y u32.
+fn read_indices(
+    soup: &mut TriangleSoup,
+    buffer: &[u8],
+    accessor: &Value,
+    buffer_views: &[Value],
+) -> Result<()> {
+    let buffer_view_idx = accessor["bufferView"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("indices sin bufferView".into()))?
+        as usize;
+
+    let buffer_view = buffer_views.get(buffer_view_idx)
+        .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
+
+    let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
+    let byte_length = buffer_view["byteLength"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
+        as usize;
+
+    let component_type = accessor["componentType"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
+
+    let count = accessor["count"].as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
+        as usize;
+
+    if byte_offset + byte_length > buffer.len() {
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "indices data truncado".into(),
+        });
+    }
+
+    let data = &buffer[byte_offset..byte_offset + byte_length];
+
+    match component_type {
+        5123 => {
+            // UNSIGNED_SHORT (u16)
+            for i in 0..count {
+                let off = i * 2;
+                if off + 2 > data.len() {
+                    return Err(InteropError::Malformed {
+                        line: 0,
+                        detail: "indices data truncado".into(),
+                    });
+                }
+                let val = u16::from_le_bytes([data[off], data[off + 1]]) as u32;
+                soup.indices.push(val);
+            }
+        }
+        5125 => {
+            // UNSIGNED_INT (u32)
+            for i in 0..count {
+                let off = i * 4;
+                if off + 4 > data.len() {
+                    return Err(InteropError::Malformed {
+                        line: 0,
+                        detail: "indices data truncado".into(),
+                    });
+                }
+                let val = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]);
+                soup.indices.push(val);
+            }
+        }
+        _ => {
+            return Err(InteropError::Unsupported("componentType de índices no soportado"));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn read_glb_file(path: impl AsRef<Path>) -> Result<TriangleSoup> {
+    let path = path.as_ref();
+    let bytes = std::fs::read(path).map_err(|e| InteropError::Io {
+        path: path.into(),
+        source: e,
+    })?;
+    read_glb(&bytes)
 }

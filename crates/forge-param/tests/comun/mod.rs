@@ -59,7 +59,14 @@ pub fn puntos_poligono(n: u32, r: f64) -> Vec<DVec2> {
 /// solver (mover el sketch, cambiar el número de lados, etc.).
 pub fn sketch_libre(pts: Vec<DVec2>, plano: Plano) -> SketchNode {
     let n = pts.len() as u32;
-    SketchNode { modelo: SketchModel { points: pts, ..Default::default() }, perfil: (0..n).map(PointId).collect(), plano }
+    SketchNode {
+        modelo: SketchModel {
+            points: pts,
+            ..Default::default()
+        },
+        perfil: (0..n).map(PointId).collect(),
+        plano,
+    }
 }
 
 /// Un rectángulo totalmente restringido: ancla en `p0`, horizontal/vertical en
@@ -86,11 +93,27 @@ pub fn sketch_rectangulo(ancho: f64, alto: f64, plano: Plano) -> Rectangulo {
         Constraint::Vertical(p1, p2),
         Constraint::Horizontal(p3, p2),
         Constraint::Vertical(p0, p3),
-        Constraint::Distance { a: p0, b: p1, dim: dim_ancho },
-        Constraint::Distance { a: p0, b: p3, dim: dim_alto },
+        Constraint::Distance {
+            a: p0,
+            b: p1,
+            dim: dim_ancho,
+        },
+        Constraint::Distance {
+            a: p0,
+            b: p3,
+            dim: dim_alto,
+        },
     ];
-    let sketch = SketchNode { modelo: m, perfil: vec![p0, p1, p2, p3], plano };
-    Rectangulo { sketch, dim_ancho, dim_alto }
+    let sketch = SketchNode {
+        modelo: m,
+        perfil: vec![p0, p1, p2, p3],
+        plano,
+    };
+    Rectangulo {
+        sketch,
+        dim_ancho,
+        dim_alto,
+    }
 }
 
 /// Traslada y rota (alrededor de Z) el plano de un sketch. Mover un sketch no
@@ -122,11 +145,20 @@ pub fn arbol_extrude_poligono(
     distancia_mm: f64,
 ) -> FeatureTree {
     let mut t = FeatureTree::new();
-    t.insertar(FeatureNode::con_id(sketch_id, "sketch", NodeKind::Sketch(sketch_libre(puntos_poligono(n, radio), plano))));
+    t.insertar(FeatureNode::con_id(
+        sketch_id,
+        "sketch",
+        NodeKind::Sketch(sketch_libre(puntos_poligono(n, radio), plano)),
+    ));
     t.insertar(FeatureNode::con_id(
         extrude_id,
         "extrude",
-        NodeKind::Extrude { perfil: sketch_id, direccion, distancia_mm, simetrico: false },
+        NodeKind::Extrude {
+            perfil: sketch_id,
+            direccion,
+            distancia_mm,
+            simetrico: false,
+        },
     ));
     t
 }
@@ -144,11 +176,20 @@ pub fn arbol_extrude_rectangulo(
 ) -> (FeatureTree, DimId, DimId) {
     let mut t = FeatureTree::new();
     let r = sketch_rectangulo(ancho, alto, plano);
-    t.insertar(FeatureNode::con_id(sketch_id, "sketch", NodeKind::Sketch(r.sketch)));
+    t.insertar(FeatureNode::con_id(
+        sketch_id,
+        "sketch",
+        NodeKind::Sketch(r.sketch),
+    ));
     t.insertar(FeatureNode::con_id(
         extrude_id,
         "extrude",
-        NodeKind::Extrude { perfil: sketch_id, direccion, distancia_mm, simetrico: false },
+        NodeKind::Extrude {
+            perfil: sketch_id,
+            direccion,
+            distancia_mm,
+            simetrico: false,
+        },
     ));
     (t, r.dim_ancho, r.dim_alto)
 }
@@ -164,7 +205,9 @@ pub fn set_ancho(tree: &mut FeatureTree, sketch_id: FeatureId, dim: DimId, valor
 
 /// Cambia la dirección de un Extrude ya insertado.
 pub fn set_direccion(tree: &mut FeatureTree, extrude_id: FeatureId, nueva: DVec3) {
-    if let NodeKind::Extrude { direccion, .. } = &mut tree.nodo_mut(extrude_id).expect("extrude").kind {
+    if let NodeKind::Extrude { direccion, .. } =
+        &mut tree.nodo_mut(extrude_id).expect("extrude").kind
+    {
         *direccion = nueva;
     } else {
         panic!("el nodo {extrude_id} no es un extrude");
@@ -173,7 +216,9 @@ pub fn set_direccion(tree: &mut FeatureTree, extrude_id: FeatureId, nueva: DVec3
 
 /// Cambia la distancia de un Extrude ya insertado.
 pub fn set_distancia(tree: &mut FeatureTree, extrude_id: FeatureId, nueva: f64) {
-    if let NodeKind::Extrude { distancia_mm, .. } = &mut tree.nodo_mut(extrude_id).expect("extrude").kind {
+    if let NodeKind::Extrude { distancia_mm, .. } =
+        &mut tree.nodo_mut(extrude_id).expect("extrude").kind
+    {
         *distancia_mm = nueva;
     } else {
         panic!("el nodo {extrude_id} no es un extrude");
@@ -189,7 +234,11 @@ pub fn set_distancia(tree: &mut FeatureTree, extrude_id: FeatureId, nueva: f64) 
 /// y esto son tres líneas sobre campos públicos de `GeometrySignature`.
 pub fn centro_de(s: &GeometrySignature) -> DVec3 {
     let q = GeometrySignature::QUANTUM_MM;
-    DVec3::new(s.centroid_q[0] as f64 * q, s.centroid_q[1] as f64 * q, s.centroid_q[2] as f64 * q)
+    DVec3::new(
+        s.centroid_q[0] as f64 * q,
+        s.centroid_q[1] as f64 * q,
+        s.centroid_q[2] as f64 * q,
+    )
 }
 
 /// La arista de `topo` cuyo centroide está más lejos del punto `de`. Sirve
@@ -257,14 +306,20 @@ pub fn agregar_fillet_sobre(
     elegir: impl Fn(&TopologySummary) -> TopoEntity,
 ) -> TopoRef {
     let outcome = evaluar(kernel, tree).expect("el arbol base debe evaluar limpio");
-    let shape = outcome.shape(entrada_id).expect("la entrada no produjo forma");
+    let shape = outcome
+        .shape(entrada_id)
+        .expect("la entrada no produjo forma");
     let topo = kernel.topology(shape).expect("topologia de la entrada");
     let entidad = elegir(&topo);
     let referencia = TopoRef::capturar(entrada_id, &entidad);
     tree.insertar(FeatureNode::con_id(
         fillet_id,
         "fillet",
-        NodeKind::Fillet { entrada: entrada_id, aristas: vec![referencia], radio_mm },
+        NodeKind::Fillet {
+            entrada: entrada_id,
+            aristas: vec![referencia],
+            radio_mm,
+        },
     ));
     referencia
 }
@@ -279,14 +334,20 @@ pub fn agregar_chamfer_sobre(
     elegir: impl Fn(&TopologySummary) -> TopoEntity,
 ) -> TopoRef {
     let outcome = evaluar(kernel, tree).expect("el arbol base debe evaluar limpio");
-    let shape = outcome.shape(entrada_id).expect("la entrada no produjo forma");
+    let shape = outcome
+        .shape(entrada_id)
+        .expect("la entrada no produjo forma");
     let topo = kernel.topology(shape).expect("topologia de la entrada");
     let entidad = elegir(&topo);
     let referencia = TopoRef::capturar(entrada_id, &entidad);
     tree.insertar(FeatureNode::con_id(
         chamfer_id,
         "chamfer",
-        NodeKind::Chamfer { entrada: entrada_id, aristas: vec![referencia], distancia_mm },
+        NodeKind::Chamfer {
+            entrada: entrada_id,
+            aristas: vec![referencia],
+            distancia_mm,
+        },
     ));
     referencia
 }
@@ -296,13 +357,22 @@ pub fn agregar_chamfer_sobre(
 /// legible si la evaluación falla o si el nodo no re-vinculó ninguna
 /// referencia — que son, ambos, fallos de la construcción del caso de test y
 /// no algo que un caso "típico" de la suite deba producir.
-pub fn medir(nombre: &str, kernel: &dyn GeometryKernel, tree: &FeatureTree, nodo_ref: FeatureId) -> Resolucion {
-    let outcome = evaluar(kernel, tree).unwrap_or_else(|e| panic!("{nombre}: la reevaluacion fallo: {e}"));
-    let salida = outcome
-        .salidas
-        .get(&nodo_ref)
-        .unwrap_or_else(|| panic!("{nombre}: el nodo de referencia {nodo_ref} no aparece en la salida"));
-    assert_eq!(salida.resoluciones.len(), 1, "{nombre}: se esperaba exactamente una resolucion en {nodo_ref}");
+pub fn medir(
+    nombre: &str,
+    kernel: &dyn GeometryKernel,
+    tree: &FeatureTree,
+    nodo_ref: FeatureId,
+) -> Resolucion {
+    let outcome =
+        evaluar(kernel, tree).unwrap_or_else(|e| panic!("{nombre}: la reevaluacion fallo: {e}"));
+    let salida = outcome.salidas.get(&nodo_ref).unwrap_or_else(|| {
+        panic!("{nombre}: el nodo de referencia {nodo_ref} no aparece en la salida")
+    });
+    assert_eq!(
+        salida.resoluciones.len(),
+        1,
+        "{nombre}: se esperaba exactamente una resolucion en {nodo_ref}"
+    );
     salida.resoluciones[0].clone()
 }
 
@@ -321,7 +391,10 @@ pub struct KernelContado<'k> {
 
 impl<'k> KernelContado<'k> {
     pub fn nuevo(inner: &'k StubKernel) -> Self {
-        KernelContado { inner, llamadas: AtomicUsize::new(0) }
+        KernelContado {
+            inner,
+            llamadas: AtomicUsize::new(0),
+        }
     }
     pub fn cuenta(&self) -> usize {
         self.llamadas.load(Ordering::SeqCst)
@@ -339,11 +412,21 @@ impl<'k> GeometryKernel for KernelContado<'k> {
         self.marca();
         self.inner.profile_from_polygon(pts, owner)
     }
-    fn extrude(&self, profile: ShapeId, opts: ExtrudeOpts, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn extrude(
+        &self,
+        profile: ShapeId,
+        opts: ExtrudeOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.extrude(profile, opts, owner)
     }
-    fn revolve(&self, profile: ShapeId, opts: RevolveOpts, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn revolve(
+        &self,
+        profile: ShapeId,
+        opts: RevolveOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.revolve(profile, opts, owner)
     }
@@ -351,19 +434,44 @@ impl<'k> GeometryKernel for KernelContado<'k> {
         self.marca();
         self.inner.box_solid(min, max, owner)
     }
-    fn cylinder(&self, base: DVec3, axis: DVec3, radius_mm: f64, height_mm: f64, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn cylinder(
+        &self,
+        base: DVec3,
+        axis: DVec3,
+        radius_mm: f64,
+        height_mm: f64,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.cylinder(base, axis, radius_mm, height_mm, owner)
     }
-    fn fillet(&self, solid: ShapeId, edges: &[StableId], spec: FilletSpec, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn fillet(
+        &self,
+        solid: ShapeId,
+        edges: &[StableId],
+        spec: FilletSpec,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.fillet(solid, edges, spec, owner)
     }
-    fn chamfer(&self, solid: ShapeId, edges: &[StableId], spec: ChamferSpec, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn chamfer(
+        &self,
+        solid: ShapeId,
+        edges: &[StableId],
+        spec: ChamferSpec,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.chamfer(solid, edges, spec, owner)
     }
-    fn boolean(&self, op: BoolOp, a: ShapeId, b: ShapeId, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn boolean(
+        &self,
+        op: BoolOp,
+        a: ShapeId,
+        b: ShapeId,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         self.marca();
         self.inner.boolean(op, a, b, owner)
     }

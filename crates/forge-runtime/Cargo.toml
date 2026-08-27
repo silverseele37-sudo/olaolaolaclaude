@@ -1,0 +1,28 @@
+[package]
+name = "forge-runtime"
+description = "Reproductor de escenas .forge sin editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+forge-io = { workspace = true }
+forge-render-api = { workspace = true }
+forge-render-cpu = { workspace = true }
+forge-material = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[[bin]]
+name = "forge-runtime"
+path = "src/main.rs"
+
+[lib]
+name = "forge_runtime"
+path = "src/lib.rs"

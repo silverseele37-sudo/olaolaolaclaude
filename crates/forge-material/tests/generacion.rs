@@ -22,11 +22,21 @@ use forge_material_api::{
 // ---------------------------------------------------------------------------
 
 fn nodo(id: u32, kind: NodeKind) -> Node {
-    Node { id, kind, defaults: Vec::new(), constant: None }
+    Node {
+        id,
+        kind,
+        defaults: Vec::new(),
+        constant: None,
+    }
 }
 
 fn constante(id: u32, valor: Value) -> Node {
-    Node { id, kind: NodeKind::Constant, defaults: Vec::new(), constant: Some(valor) }
+    Node {
+        id,
+        kind: NodeKind::Constant,
+        defaults: Vec::new(),
+        constant: Some(valor),
+    }
 }
 
 fn con_default(mut n: Node, nombre: &str, valor: Value) -> Node {
@@ -35,7 +45,11 @@ fn con_default(mut n: Node, nombre: &str, valor: Value) -> Node {
 }
 
 fn enlace(from: u32, to: u32, to_input: &str) -> Link {
-    Link { from, to, to_input: to_input.to_string() }
+    Link {
+        from,
+        to,
+        to_input: to_input.to_string(),
+    }
 }
 
 /// `StandardSurface` con las cuatro entradas resueltas por defecto. Los tests
@@ -78,7 +92,11 @@ fn grafo_rico() -> MaterialGraph {
     );
     let potencia = con_default(nodo(4, NodeKind::Power), "b", Value::Float(2.2));
     let normal = nodo(5, NodeKind::Normal);
-    let dp = con_default(nodo(6, NodeKind::DotProduct), "b", Value::Vec3([0.0, 0.0, 1.0]));
+    let dp = con_default(
+        nodo(6, NodeKind::DotProduct),
+        "b",
+        Value::Vec3([0.0, 0.0, 1.0]),
+    );
 
     MaterialGraph {
         name: "rico".to_string(),
@@ -117,7 +135,9 @@ fn validar_con_naga(wgsl: &str) {
 /// Genera el shader y exige que naga lo acepte. El punto de partida de casi
 /// todos los tests de grafos válidos.
 fn generar_valido(g: &MaterialGraph) -> GeneratedShader {
-    let shader = WgslGenerator.generate(g).unwrap_or_else(|e| panic!("grafo invalido: {e}"));
+    let shader = WgslGenerator
+        .generate(g)
+        .unwrap_or_else(|e| panic!("grafo invalido: {e}"));
     validar_con_naga(&shader.wgsl);
     shader
 }
@@ -130,7 +150,9 @@ fn generar_valido(g: &MaterialGraph) -> GeneratedShader {
 fn grafo_minimo_constante_a_salida_genera_wgsl_que_naga_valida() {
     let shader = generar_valido(&grafo_minimo());
     assert!(shader.wgsl.contains("struct SurfaceProperties {"));
-    assert!(shader.wgsl.contains("fn material_surface() -> SurfaceProperties {"));
+    assert!(shader
+        .wgsl
+        .contains("fn material_surface() -> SurfaceProperties {"));
     assert_eq!(shader.nodes_used, 2);
 }
 
@@ -148,7 +170,9 @@ fn nodo_constant_genera_el_literal_exacto() {
     };
     let shader = generar_valido(&g);
     assert!(
-        shader.wgsl.contains("let n1: vec3<f32> = vec3<f32>(0.8, 0.2, 0.2);"),
+        shader
+            .wgsl
+            .contains("let n1: vec3<f32> = vec3<f32>(0.8, 0.2, 0.2);"),
         "wgsl generado:\n{}",
         shader.wgsl
     );
@@ -158,13 +182,25 @@ fn nodo_constant_genera_el_literal_exacto() {
 fn nodo_texcoord_expone_uv_como_parametro_de_la_funcion() {
     let g = MaterialGraph {
         name: "texcoord".to_string(),
-        nodes: vec![nodo(1, NodeKind::TexCoord), nodo(2, NodeKind::Gradient), superficie(3)],
+        nodes: vec![
+            nodo(1, NodeKind::TexCoord),
+            nodo(2, NodeKind::Gradient),
+            superficie(3),
+        ],
         links: vec![enlace(1, 2, "uv"), enlace(2, 3, "roughness")],
         output: Some(3),
     };
     let shader = generar_valido(&g);
-    assert!(shader.wgsl.contains("fn material_surface(uv: vec2<f32>)"), "{}", shader.wgsl);
-    assert!(shader.wgsl.contains("let n1: vec2<f32> = uv;"), "{}", shader.wgsl);
+    assert!(
+        shader.wgsl.contains("fn material_surface(uv: vec2<f32>)"),
+        "{}",
+        shader.wgsl
+    );
+    assert!(
+        shader.wgsl.contains("let n1: vec2<f32> = uv;"),
+        "{}",
+        shader.wgsl
+    );
 }
 
 #[test]
@@ -173,17 +209,33 @@ fn nodo_normal_expone_normal_como_parametro_de_la_funcion() {
         name: "normal".to_string(),
         nodes: vec![
             nodo(1, NodeKind::Normal),
-            con_default(nodo(2, NodeKind::DotProduct), "b", Value::Vec3([0.0, 0.0, 1.0])),
+            con_default(
+                nodo(2, NodeKind::DotProduct),
+                "b",
+                Value::Vec3([0.0, 0.0, 1.0]),
+            ),
             superficie(3),
         ],
         links: vec![enlace(1, 2, "a"), enlace(2, 3, "roughness")],
         output: Some(3),
     };
     let shader = generar_valido(&g);
-    assert!(shader.wgsl.contains("fn material_surface(normal: vec3<f32>)"), "{}", shader.wgsl);
-    assert!(shader.wgsl.contains("let n1: vec3<f32> = normal;"), "{}", shader.wgsl);
     assert!(
-        shader.wgsl.contains("let n2: f32 = dot(n1, vec3<f32>(0.0, 0.0, 1.0));"),
+        shader
+            .wgsl
+            .contains("fn material_surface(normal: vec3<f32>)"),
+        "{}",
+        shader.wgsl
+    );
+    assert!(
+        shader.wgsl.contains("let n1: vec3<f32> = normal;"),
+        "{}",
+        shader.wgsl
+    );
+    assert!(
+        shader
+            .wgsl
+            .contains("let n2: f32 = dot(n1, vec3<f32>(0.0, 0.0, 1.0));"),
         "{}",
         shader.wgsl
     );
@@ -195,15 +247,29 @@ fn nodo_position_expone_position_como_parametro_de_la_funcion() {
         name: "position".to_string(),
         nodes: vec![
             nodo(1, NodeKind::Position),
-            con_default(nodo(2, NodeKind::DotProduct), "b", Value::Vec3([1.0, 0.0, 0.0])),
+            con_default(
+                nodo(2, NodeKind::DotProduct),
+                "b",
+                Value::Vec3([1.0, 0.0, 0.0]),
+            ),
             superficie(3),
         ],
         links: vec![enlace(1, 2, "a"), enlace(2, 3, "metallic")],
         output: Some(3),
     };
     let shader = generar_valido(&g);
-    assert!(shader.wgsl.contains("fn material_surface(position: vec3<f32>)"), "{}", shader.wgsl);
-    assert!(shader.wgsl.contains("let n1: vec3<f32> = position;"), "{}", shader.wgsl);
+    assert!(
+        shader
+            .wgsl
+            .contains("fn material_surface(position: vec3<f32>)"),
+        "{}",
+        shader.wgsl
+    );
+    assert!(
+        shader.wgsl.contains("let n1: vec3<f32> = position;"),
+        "{}",
+        shader.wgsl
+    );
 }
 
 #[test]
@@ -232,7 +298,11 @@ fn nodo_add_genera_la_suma_componente_a_componente() {
 #[test]
 fn nodo_multiply_genera_el_producto_componente_a_componente() {
     let prod = con_default(
-        con_default(nodo(1, NodeKind::Multiply), "a", Value::Vec3([2.0, 3.0, 4.0])),
+        con_default(
+            nodo(1, NodeKind::Multiply),
+            "a",
+            Value::Vec3([2.0, 3.0, 4.0]),
+        ),
         "b",
         Value::Vec3([0.5, 0.5, 0.5]),
     );
@@ -287,7 +357,11 @@ fn nodo_mix_usa_la_sobrecarga_vector_vector_escalar() {
 fn nodo_clamp_ensancha_los_limites_escalares_a_vec3() {
     let recorte = con_default(
         con_default(
-            con_default(nodo(1, NodeKind::Clamp), "in", Value::Vec3([2.0, -1.0, 0.5])),
+            con_default(
+                nodo(1, NodeKind::Clamp),
+                "in",
+                Value::Vec3([2.0, -1.0, 0.5]),
+            ),
             "low",
             Value::Float(0.0),
         ),
@@ -318,7 +392,11 @@ fn nodo_clamp_ensancha_los_limites_escalares_a_vec3() {
 #[test]
 fn nodo_power_protege_la_base_negativa_con_max() {
     let potencia = con_default(
-        con_default(nodo(1, NodeKind::Power), "a", Value::Vec3([-2.0, 4.0, -0.5])),
+        con_default(
+            nodo(1, NodeKind::Power),
+            "a",
+            Value::Vec3([-2.0, 4.0, -0.5]),
+        ),
         "b",
         Value::Float(2.0),
     );
@@ -336,13 +414,20 @@ fn nodo_power_protege_la_base_negativa_con_max() {
         "{}",
         shader.wgsl
     );
-    assert!(shader.wgsl.contains("max("), "falta la guarda protectora de pow");
+    assert!(
+        shader.wgsl.contains("max("),
+        "falta la guarda protectora de pow"
+    );
 }
 
 #[test]
 fn nodo_dotproduct_genera_dot() {
     let dp = con_default(
-        con_default(nodo(1, NodeKind::DotProduct), "a", Value::Vec3([1.0, 2.0, 3.0])),
+        con_default(
+            nodo(1, NodeKind::DotProduct),
+            "a",
+            Value::Vec3([1.0, 2.0, 3.0]),
+        ),
         "b",
         Value::Vec3([4.0, 5.0, 6.0]),
     );
@@ -382,7 +467,9 @@ fn nodo_remap_genera_la_formula_de_reasignacion_lineal() {
     };
     let shader = generar_valido(&g);
     assert!(
-        shader.wgsl.contains("let n1: f32 = (0.2 + (0.5 - 0.0) * (0.8 - 0.2) / (1.0 - 0.0));"),
+        shader
+            .wgsl
+            .contains("let n1: f32 = (0.2 + (0.5 - 0.0) * (0.8 - 0.2) / (1.0 - 0.0));"),
         "{}",
         shader.wgsl
     );
@@ -423,7 +510,9 @@ fn nodo_gradient_genera_la_rampa_vertical_en_v() {
     };
     let shader = generar_valido(&g);
     assert!(
-        shader.wgsl.contains("let n1: f32 = clamp(vec2<f32>(0.1, 0.9).y, 0.0, 1.0);"),
+        shader
+            .wgsl
+            .contains("let n1: f32 = clamp(vec2<f32>(0.1, 0.9).y, 0.0, 1.0);"),
         "{}",
         shader.wgsl
     );
@@ -481,9 +570,18 @@ fn un_nodo_inalcanzable_no_aparece_en_el_wgsl_generado() {
         output: Some(2),
     };
     let shader = generar_valido(&g);
-    assert!(!shader.wgsl.contains("n99"), "el nodo inalcanzable no deberia tener variable propia");
-    assert!(!shader.wgsl.contains("777"), "el literal del nodo muerto no deberia aparecer");
-    assert_eq!(shader.nodes_used, 2, "solo cuentan como usados los nodos alcanzables");
+    assert!(
+        !shader.wgsl.contains("n99"),
+        "el nodo inalcanzable no deberia tener variable propia"
+    );
+    assert!(
+        !shader.wgsl.contains("777"),
+        "el literal del nodo muerto no deberia aparecer"
+    );
+    assert_eq!(
+        shader.nodes_used, 2,
+        "solo cuentan como usados los nodos alcanzables"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -523,7 +621,10 @@ fn permutation_key_no_cambia_al_reordenar_el_vec_de_nodos() {
     let a = WgslGenerator.generate(&g1).unwrap();
     let b = WgslGenerator.generate(&g2).unwrap();
     assert_eq!(a.permutation_key, b.permutation_key);
-    assert_eq!(a.wgsl, b.wgsl, "reordenar nodes no deberia cambiar ni el texto generado");
+    assert_eq!(
+        a.wgsl, b.wgsl,
+        "reordenar nodes no deberia cambiar ni el texto generado"
+    );
 }
 
 /// Y el caso contrario: cambiar un literal (misma topología) sí debe cambiar
@@ -551,7 +652,10 @@ fn permutation_key_no_es_una_constante() {
     let mut vistas: Vec<u64> = Vec::new();
     for grafo in [grafo_minimo(), grafo_rico()] {
         let clave = WgslGenerator.generate(&grafo).unwrap().permutation_key;
-        assert!(!vistas.contains(&clave), "clave repetida entre grafos distintos");
+        assert!(
+            !vistas.contains(&clave),
+            "clave repetida entre grafos distintos"
+        );
         vistas.push(clave);
     }
     // y no es trivialmente 0 ni el hash de una cadena vacía
@@ -595,7 +699,11 @@ fn control_un_ciclo_se_detecta_y_no_cuelga() {
 fn control_tipos_incompatibles_se_detectan() {
     // DotProduct da Float; Add.a exige Vec3. Es un TypeMismatch real.
     let dp = con_default(
-        con_default(nodo(1, NodeKind::DotProduct), "a", Value::Vec3([1.0, 0.0, 0.0])),
+        con_default(
+            nodo(1, NodeKind::DotProduct),
+            "a",
+            Value::Vec3([1.0, 0.0, 0.0]),
+        ),
         "b",
         Value::Vec3([0.0, 1.0, 0.0]),
     );
@@ -610,7 +718,10 @@ fn control_tipos_incompatibles_se_detectan() {
     assert!(
         matches!(
             r,
-            Err(MaterialError::TypeMismatch { from: SocketType::Float, to: SocketType::Vec3 })
+            Err(MaterialError::TypeMismatch {
+                from: SocketType::Float,
+                to: SocketType::Vec3
+            })
         ),
         "se esperaba TypeMismatch Float -> Vec3, salio {r:?}"
     );
@@ -628,7 +739,13 @@ fn control_entrada_obligatoria_sin_conectar_se_detecta() {
     };
     let r = WgslGenerator.generate(&g);
     assert!(
-        matches!(r, Err(MaterialError::MissingInput { node: 1, input: "b" })),
+        matches!(
+            r,
+            Err(MaterialError::MissingInput {
+                node: 1,
+                input: "b"
+            })
+        ),
         "se esperaba MissingInput(1, \"b\"), salio {r:?}"
     );
 }
@@ -641,7 +758,10 @@ fn control_grafo_sin_nodo_de_salida_se_detecta() {
         links: vec![],
         output: None,
     };
-    assert!(matches!(WgslGenerator.generate(&g), Err(MaterialError::NoOutput)));
+    assert!(matches!(
+        WgslGenerator.generate(&g),
+        Err(MaterialError::NoOutput)
+    ));
 }
 
 /// El contrato exige que la salida sea `StandardSurface`; apuntar `output` a
@@ -655,7 +775,10 @@ fn control_salida_que_no_es_standard_surface_tambien_cuenta_como_sin_salida() {
         links: vec![],
         output: Some(1),
     };
-    assert!(matches!(WgslGenerator.generate(&g), Err(MaterialError::NoOutput)));
+    assert!(matches!(
+        WgslGenerator.generate(&g),
+        Err(MaterialError::NoOutput)
+    ));
 }
 
 #[test]
@@ -666,7 +789,10 @@ fn control_referencia_a_nodo_inexistente_se_detecta() {
         links: vec![enlace(999, 2, "base_color")],
         output: Some(2),
     };
-    assert!(matches!(WgslGenerator.generate(&g), Err(MaterialError::UnknownNode(999))));
+    assert!(matches!(
+        WgslGenerator.generate(&g),
+        Err(MaterialError::UnknownNode(999))
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -695,9 +821,17 @@ fn una_constante_color_alimenta_una_entrada_vec3_sin_problema() {
         output: Some(3),
     };
     let shader = generar_valido(&g);
-    assert!(shader.wgsl.contains("let n1: vec3<f32> = vec3<f32>(0.9, 0.1, 0.1);"), "{}", shader.wgsl);
     assert!(
-        shader.wgsl.contains("let n2: vec3<f32> = n1 + vec3<f32>(0.0, 0.0, 0.0);"),
+        shader
+            .wgsl
+            .contains("let n1: vec3<f32> = vec3<f32>(0.9, 0.1, 0.1);"),
+        "{}",
+        shader.wgsl
+    );
+    assert!(
+        shader
+            .wgsl
+            .contains("let n2: vec3<f32> = n1 + vec3<f32>(0.0, 0.0, 0.0);"),
         "{}",
         shader.wgsl
     );
@@ -720,7 +854,10 @@ fn control_vec2_no_es_compatible_con_color_aunque_ambos_sean_vectores() {
     assert!(
         matches!(
             r,
-            Err(MaterialError::TypeMismatch { from: SocketType::Vec2, to: SocketType::Color })
+            Err(MaterialError::TypeMismatch {
+                from: SocketType::Vec2,
+                to: SocketType::Color
+            })
         ),
         "se esperaba TypeMismatch Vec2 -> Color, salio {r:?}"
     );

@@ -29,8 +29,12 @@ pub(crate) fn calcular(nodos: &HashMap<u32, &Node>, analisis: &Analisis) -> u64 
     // para que la clave sea estable entre ejecuciones, no solo dentro de una.
     let mut h = std::collections::hash_map::DefaultHasher::new();
 
-    let indice: HashMap<u32, usize> =
-        analisis.orden.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let indice: HashMap<u32, usize> = analisis
+        .orden
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
 
     for &id in &analisis.orden {
         let nodo = nodos[&id];

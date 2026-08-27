@@ -62,6 +62,10 @@ impl ShaderGenerator for WgslGenerator {
         let wgsl = emitir::emitir(graph, &analisis, &nodos);
         let permutation_key = clave::calcular(&nodos, &analisis);
 
-        Ok(GeneratedShader { wgsl, permutation_key, nodes_used: analisis.orden.len() })
+        Ok(GeneratedShader {
+            wgsl,
+            permutation_key,
+            nodes_used: analisis.orden.len(),
+        })
     }
 }

@@ -200,7 +200,7 @@ impl Tessellation {
     /// Comprueba las invariantes estructurales. Barato y vale la pena llamarlo
     /// en los tests de cualquier implementación del kernel.
     pub fn validate(&self) -> KernelResult<()> {
-        if self.indices.len() % 3 != 0 {
+        if !self.indices.len().is_multiple_of(3) {
             return Err(KernelError::OperationFailed {
                 op: "tessellate",
                 detail: format!("indices no multiplo de 3: {}", self.indices.len()),

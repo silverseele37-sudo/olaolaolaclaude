@@ -5,7 +5,7 @@
 //! conversión de ejes correcta de una equivocada, que es exactamente el bug que
 //! este crate existe para evitar.
 
-use forge_interop::{gltf, obj, InteropError, TriangleSoup};
+use forge_interop::{gltf, obj, usd, InteropError, TriangleSoup};
 use forge_math::{DVec2, DVec3};
 
 /// Caja con esquinas en `min` y `max`, 12 triángulos, normales por vértice.
@@ -315,4 +315,101 @@ fn glb_json_detecta_contenedores_corruptos() {
         gltf::glb_json(&[1, 2, 3]).is_err(),
         "no detecto un archivo truncado"
     );
+}
+
+#[test]
+fn glb_ida_y_vuelta_conserva_geometria() {
+    let original = caja(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 20.0, 30.0));
+    let glb = gltf::to_glb(&original, gltf::GltfOptions::default()).unwrap();
+    let vuelta = gltf::read_glb(&glb).unwrap();
+
+    assert_eq!(vuelta.triangle_count(), 12);
+    assert_eq!(vuelta.positions.len(), original.positions.len());
+    assert_eq!(vuelta.indices, original.indices);
+
+    // las posiciones deben coincidir dentro de tolerancia (perdida por float32)
+    for (a, b) in original.positions.iter().zip(&vuelta.positions) {
+        assert!((*a - *b).length() < 1e-5, "{a:?} != {b:?}");
+    }
+
+    // el bounding box debe coincidir dentro de tolerancia (perdida por float32 y conversiones)
+    let orig_bbox = original.bbox();
+    let vuelta_bbox = vuelta.bbox();
+    assert!((orig_bbox.min - vuelta_bbox.min).length() < 1e-5, "min: {:?} != {:?}", orig_bbox.min, vuelta_bbox.min);
+    assert!((orig_bbox.max - vuelta_bbox.max).length() < 1e-5, "max: {:?} != {:?}", orig_bbox.max, vuelta_bbox.max);
+}
+
+#[test]
+fn glb_lee_normal_correctamente() {
+    // Verifica que se leen normales y UVs
+    let original = caja(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 20.0, 30.0));
+    let glb = gltf::to_glb(&original, gltf::GltfOptions::default()).unwrap();
+    let vuelta = gltf::read_glb(&glb).unwrap();
+
+    // Debe tener normales
+    assert!(!vuelta.normals.is_empty(), "no se leyeron las normales");
+    assert_eq!(vuelta.normals.len(), vuelta.positions.len());
+
+    // Debe tener UVs
+    assert!(!vuelta.uvs.is_empty(), "no se leyeron los UVs");
+    assert_eq!(vuelta.uvs.len(), vuelta.positions.len());
+
+    // Las normales deben ser aproximadamente las mismas (con tolerancia por float32)
+    for (a, b) in original.normals.iter().zip(&vuelta.normals) {
+        assert!((*a - *b).length() < 1e-5, "{a:?} != {b:?}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// USD
+// ---------------------------------------------------------------------------
+
+#[test]
+fn usd_escribe_geometria_estatica_solo() {
+    let s = caja(DVec3::ZERO, DVec3::new(10.0, 20.0, 30.0));
+    let usda = usd::to_string(&s).unwrap();
+
+    // Encabezado
+    assert!(usda.contains("#usda 1.0"), "falta header USDA");
+    assert!(usda.contains("upAxis = \"Z\""), "upAxis no es Z (ventaja sobre glTF)");
+    assert!(usda.contains("metersPerUnit = 0.001"), "metersPerUnit debe ser 0.001 para mm");
+
+    // Estructura: geometría estática, sin composición
+    assert!(usda.contains("def Xform \"stage\""), "no hay stage");
+    assert!(usda.contains("def Mesh"), "no hay Mesh");
+    assert!(!usda.contains("def Layer"), "composición no permitida");
+    assert!(!usda.contains("variantSet"), "variantes no permitidas");
+    assert!(!usda.contains("ref "), "referencias no permitidas");
+
+    // Atributos de malla
+    assert!(usda.contains("point3f[]"), "no hay points");
+    assert!(usda.contains("faceVertexCounts"), "no hay faceVertexCounts");
+    assert!(usda.contains("faceVertexIndices"), "no hay faceVertexIndices");
+    assert!(usda.contains("normal3f[]"), "no hay normales");
+
+    // Valores: todos deben tener 9 decimales de precisión
+    assert!(usda.contains("10.000000000"), "no contiene valores esperados");
+    assert!(usda.contains("20.000000000"), "no contiene valores esperados");
+    assert!(usda.contains("30.000000000"), "no contiene valores esperados");
+}
+
+#[test]
+fn usd_sin_conversiones_mantiene_precision_exacta() {
+    // USD permite Z arriba, así que **no hay conversión de ejes**, a diferencia de glTF
+    let s = caja(DVec3::new(1.5, 2.5, 3.5), DVec3::new(11.5, 22.5, 33.5));
+    let usda = usd::to_string(&s).unwrap();
+
+    // Los valores deben aparecer sin cambios (Z arriba en los datos y en el formato)
+    assert!(usda.contains("1.500000000"), "coordenadas inexactas");
+    assert!(usda.contains("3.500000000"), "coordenadas Z no preservadas");
+
+    // Los números están en el mismo rango que en FORGE: sin conversión de metros
+    assert!(usda.contains("11.500000000"), "conversión de unidades no debería ocurrir");
+}
+
+#[test]
+fn usd_rechaza_mallas_invalidas() {
+    let mut s = caja(DVec3::ZERO, DVec3::ONE);
+    s.positions.clear();
+    assert!(usd::to_string(&s).is_err(), "debería rechazar malla sin vertices");
 }

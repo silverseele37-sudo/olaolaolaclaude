@@ -430,6 +430,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-runtime"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-io",
+ "forge-material",
+ "forge-math",
+ "forge-render-api",
+ "forge-render-cpu",
+ "forge-store",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "forge-script"
 version = "0.1.0"
 dependencies = [

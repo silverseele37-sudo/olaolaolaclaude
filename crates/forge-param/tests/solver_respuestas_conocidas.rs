@@ -25,10 +25,23 @@ fn el_rectangulo_totalmente_restringido_resuelve_exacto_a_las_cotas_pedidas() {
     let solver = GaussNewtonSolver::default();
     let resultado = solver.solve(&r.sketch.modelo);
 
-    assert_eq!(resultado.status, SolveStatus::Ok, "deberia quedar completamente restringido: {:?}", resultado.status);
-    let esperado = [DVec2::new(0.0, 0.0), DVec2::new(30.0, 0.0), DVec2::new(30.0, 12.0), DVec2::new(0.0, 12.0)];
+    assert_eq!(
+        resultado.status,
+        SolveStatus::Ok,
+        "deberia quedar completamente restringido: {:?}",
+        resultado.status
+    );
+    let esperado = [
+        DVec2::new(0.0, 0.0),
+        DVec2::new(30.0, 0.0),
+        DVec2::new(30.0, 12.0),
+        DVec2::new(0.0, 12.0),
+    ];
     for (i, (p, e)) in resultado.positions.iter().zip(esperado).enumerate() {
-        assert!((*p - e).length() < 1e-7, "punto {i}: {p:?} vs esperado {e:?}");
+        assert!(
+            (*p - e).length() < 1e-7,
+            "punto {i}: {p:?} vs esperado {e:?}"
+        );
     }
 }
 
@@ -42,13 +55,23 @@ fn el_rectangulo_totalmente_restringido_resuelve_exacto_a_las_cotas_pedidas() {
 #[test]
 fn un_sketch_sin_anclar_reporta_underconstrained_con_los_dos_grados_de_libertad_de_traslacion() {
     let mut r = sketch_rectangulo(30.0, 12.0, Plano::default());
-    r.sketch.modelo.constraints.retain(|c| !matches!(c, Constraint::Fixed(_)));
-    assert_eq!(r.sketch.modelo.nominal_dof(), 2, "cuenta nominal: 8 vars - 6 ecuaciones = 2");
+    r.sketch
+        .modelo
+        .constraints
+        .retain(|c| !matches!(c, Constraint::Fixed(_)));
+    assert_eq!(
+        r.sketch.modelo.nominal_dof(),
+        2,
+        "cuenta nominal: 8 vars - 6 ecuaciones = 2"
+    );
 
     let solver = GaussNewtonSolver::default();
     let resultado = solver.solve(&r.sketch.modelo);
     match resultado.status {
-        SolveStatus::UnderConstrained { dof } => assert_eq!(dof, 2, "se esperaban 2 grados de libertad (traslacion en x,y)"),
+        SolveStatus::UnderConstrained { dof } => assert_eq!(
+            dof, 2,
+            "se esperaban 2 grados de libertad (traslacion en x,y)"
+        ),
         otro => panic!("se esperaba UnderConstrained{{dof:2}}, salio {otro:?}"),
     }
 }
@@ -74,16 +97,28 @@ fn dos_cotas_de_distancia_contradictorias_reportan_overconstrained_con_los_indic
     let d10 = m.add_dimension(10.0);
     let d20 = m.add_dimension(20.0);
     m.constraints = vec![
-        Constraint::Fixed(p0),                                  // indice 0
-        Constraint::Distance { a: p0, b: p1, dim: d10 },         // indice 1
-        Constraint::Distance { a: p0, b: p1, dim: d20 },         // indice 2
+        Constraint::Fixed(p0), // indice 0
+        Constraint::Distance {
+            a: p0,
+            b: p1,
+            dim: d10,
+        }, // indice 1
+        Constraint::Distance {
+            a: p0,
+            b: p1,
+            dim: d20,
+        }, // indice 2
     ];
 
     let solver = GaussNewtonSolver::default();
     let resultado = solver.solve(&m);
     match resultado.status {
         SolveStatus::OverConstrained { conflicting } => {
-            assert_eq!(conflicting, vec![1, 2], "las restricciones en conflicto deberian ser las dos Distance, no el Fixed");
+            assert_eq!(
+                conflicting,
+                vec![1, 2],
+                "las restricciones en conflicto deberian ser las dos Distance, no el Fixed"
+            );
         }
         otro => panic!("se esperaba OverConstrained{{conflicting:[1,2]}}, salio {otro:?}"),
     }

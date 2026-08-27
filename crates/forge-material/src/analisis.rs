@@ -54,7 +54,10 @@ pub(crate) fn tipo_salida(nodo: &Node) -> SocketType {
         // Si `constant` es `None` el nodo es inválido de todos modos (se
         // reporta como `MissingInput` en `recorrer`); el `Vec3` de aquí es
         // solo un valor de repliegue para no tener que propagar un `Option`.
-        NodeKind::Constant => nodo.constant.map(Value::socket_type).unwrap_or(SocketType::Vec3),
+        NodeKind::Constant => nodo
+            .constant
+            .map(Value::socket_type)
+            .unwrap_or(SocketType::Vec3),
         otro => otro.output_type(),
     }
 }
@@ -62,7 +65,9 @@ pub(crate) fn tipo_salida(nodo: &Node) -> SocketType {
 /// Valida y resuelve el grafo completo a partir de su nodo de salida.
 pub(crate) fn analizar(graph: &MaterialGraph, nodos: &HashMap<u32, &Node>) -> Result<Analisis> {
     let salida_id = graph.output.ok_or(MaterialError::NoOutput)?;
-    let salida = nodos.get(&salida_id).ok_or(MaterialError::UnknownNode(salida_id))?;
+    let salida = nodos
+        .get(&salida_id)
+        .ok_or(MaterialError::UnknownNode(salida_id))?;
     if salida.kind != NodeKind::StandardSurface {
         // Un grafo cuya salida no es una superficie estándar no tiene, en la
         // práctica, una salida válida: se reporta igual que "sin salida" en
@@ -73,7 +78,14 @@ pub(crate) fn analizar(graph: &MaterialGraph, nodos: &HashMap<u32, &Node>) -> Re
     let mut estado = HashMap::new();
     let mut orden = Vec::new();
     let mut entradas = HashMap::new();
-    recorrer(salida_id, graph, nodos, &mut estado, &mut orden, &mut entradas)?;
+    recorrer(
+        salida_id,
+        graph,
+        nodos,
+        &mut estado,
+        &mut orden,
+        &mut entradas,
+    )?;
     Ok(Analisis { orden, entradas })
 }
 
@@ -106,7 +118,10 @@ fn recorrer(
 
     if let NodeKind::Constant = nodo.kind {
         if nodo.constant.is_none() {
-            return Err(MaterialError::MissingInput { node: id, input: "constant" });
+            return Err(MaterialError::MissingInput {
+                node: id,
+                input: "constant",
+            });
         }
     }
 
@@ -134,11 +149,20 @@ fn resolver_entrada(
     tipo_esperado: SocketType,
     nodos: &HashMap<u32, &Node>,
 ) -> Result<Entrada> {
-    if let Some(enlace) = graph.links.iter().find(|l| l.to == nodo.id && l.to_input == nombre) {
-        let origen = *nodos.get(&enlace.from).ok_or(MaterialError::UnknownNode(enlace.from))?;
+    if let Some(enlace) = graph
+        .links
+        .iter()
+        .find(|l| l.to == nodo.id && l.to_input == nombre)
+    {
+        let origen = *nodos
+            .get(&enlace.from)
+            .ok_or(MaterialError::UnknownNode(enlace.from))?;
         let tipo_origen = tipo_salida(origen);
         if !tipo_origen.compatible_with(tipo_esperado) {
-            return Err(MaterialError::TypeMismatch { from: tipo_origen, to: tipo_esperado });
+            return Err(MaterialError::TypeMismatch {
+                from: tipo_origen,
+                to: tipo_esperado,
+            });
         }
         return Ok(Entrada::Nodo(origen.id));
     }
@@ -146,10 +170,16 @@ fn resolver_entrada(
     if let Some((_, valor)) = nodo.defaults.iter().find(|(n, _)| n == nombre) {
         let tipo_valor = valor.socket_type();
         if !tipo_valor.compatible_with(tipo_esperado) {
-            return Err(MaterialError::TypeMismatch { from: tipo_valor, to: tipo_esperado });
+            return Err(MaterialError::TypeMismatch {
+                from: tipo_valor,
+                to: tipo_esperado,
+            });
         }
         return Ok(Entrada::Literal(*valor));
     }
 
-    Err(MaterialError::MissingInput { node: nodo.id, input: nombre })
+    Err(MaterialError::MissingInput {
+        node: nodo.id,
+        input: nombre,
+    })
 }

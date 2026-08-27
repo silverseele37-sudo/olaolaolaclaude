@@ -28,12 +28,25 @@ fn renombrar_un_nodo_no_dispara_ningun_recalculo() {
     let sketch_id = fid(1);
     let extrude_id = fid(2);
     let fillet_id = fid(3);
-    let mut tree = arbol_extrude_poligono(sketch_id, extrude_id, 6, 10.0, Plano::default(), DVec3::Z, 5.0);
-    let _ = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| t.edges[0].clone());
+    let mut tree = arbol_extrude_poligono(
+        sketch_id,
+        extrude_id,
+        6,
+        10.0,
+        Plano::default(),
+        DVec3::Z,
+        5.0,
+    );
+    let _ = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        t.edges[0].clone()
+    });
 
     let mut ev = Evaluator::new(&k);
     let out1 = ev.evaluar(&tree).unwrap();
-    assert_eq!(out1.stats.nodos_calculados, 3, "sketch + extrude + fillet, los tres de cero");
+    assert_eq!(
+        out1.stats.nodos_calculados, 3,
+        "sketch + extrude + fillet, los tres de cero"
+    );
     let llamadas_tras_primera = k.cuenta();
     assert!(llamadas_tras_primera > 0);
 
@@ -41,7 +54,10 @@ fn renombrar_un_nodo_no_dispara_ningun_recalculo() {
     tree.nodo_mut(extrude_id).unwrap().nombre = "y este tambien".into();
 
     let out2 = ev.evaluar(&tree).unwrap();
-    assert_eq!(out2.stats.aciertos_cache, 3, "los tres nodos deberian venir de cache");
+    assert_eq!(
+        out2.stats.aciertos_cache, 3,
+        "los tres nodos deberian venir de cache"
+    );
     assert_eq!(
         k.cuenta(),
         llamadas_tras_primera,
@@ -76,17 +92,37 @@ fn una_cota_sin_uso_no_invalida_nada_aguas_abajo() {
     let p2 = modelo.add_point(DVec2::new(10.0, 10.0));
     let p3 = modelo.add_point(DVec2::new(0.0, 10.0));
     let huerfana: DimId = modelo.add_dimension(42.0);
-    modelo.constraints = vec![Constraint::Fixed(p0), Constraint::Fixed(p1), Constraint::Fixed(p2), Constraint::Fixed(p3)];
-    let sketch = SketchNode { modelo, perfil: vec![p0, p1, p2, p3], plano: Plano::default() };
+    modelo.constraints = vec![
+        Constraint::Fixed(p0),
+        Constraint::Fixed(p1),
+        Constraint::Fixed(p2),
+        Constraint::Fixed(p3),
+    ];
+    let sketch = SketchNode {
+        modelo,
+        perfil: vec![p0, p1, p2, p3],
+        plano: Plano::default(),
+    };
 
     let mut tree = FeatureTree::new();
-    tree.insertar(FeatureNode::con_id(sketch_id, "sketch", NodeKind::Sketch(sketch)));
+    tree.insertar(FeatureNode::con_id(
+        sketch_id,
+        "sketch",
+        NodeKind::Sketch(sketch),
+    ));
     tree.insertar(FeatureNode::con_id(
         extrude_id,
         "extrude",
-        NodeKind::Extrude { perfil: sketch_id, direccion: DVec3::Z, distancia_mm: 5.0, simetrico: false },
+        NodeKind::Extrude {
+            perfil: sketch_id,
+            direccion: DVec3::Z,
+            distancia_mm: 5.0,
+            simetrico: false,
+        },
     ));
-    let _ = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| t.edges[0].clone());
+    let _ = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        t.edges[0].clone()
+    });
 
     let mut ev = Evaluator::new(&k);
     let out1 = ev.evaluar(&tree).unwrap();
@@ -97,7 +133,11 @@ fn una_cota_sin_uso_no_invalida_nada_aguas_abajo() {
     }
 
     let out2 = ev.evaluar(&tree).unwrap();
-    assert_eq!(k.cuenta(), llamadas1, "una cota que nadie lee no debe tocar el kernel");
+    assert_eq!(
+        k.cuenta(),
+        llamadas1,
+        "una cota que nadie lee no debe tocar el kernel"
+    );
     assert_eq!(out2.stats.aciertos_cache, 3);
     assert_eq!(out1.clave(fillet_id), out2.clave(fillet_id));
 }
@@ -113,8 +153,15 @@ fn en_cambio_una_cota_que_si_se_usa_si_invalida() {
 
     let sketch_id = fid(1);
     let extrude_id = fid(2);
-    let (mut tree, dim_ancho, _dim_alto) =
-        arbol_extrude_rectangulo(sketch_id, extrude_id, 10.0, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let (mut tree, dim_ancho, _dim_alto) = arbol_extrude_rectangulo(
+        sketch_id,
+        extrude_id,
+        10.0,
+        10.0,
+        Plano::default(),
+        DVec3::Z,
+        5.0,
+    );
 
     let mut ev = Evaluator::new(&k);
     let out1 = ev.evaluar(&tree).unwrap();
@@ -123,7 +170,10 @@ fn en_cambio_una_cota_que_si_se_usa_si_invalida() {
     set_ancho(&mut tree, sketch_id, dim_ancho, 20.0);
     let out2 = ev.evaluar(&tree).unwrap();
 
-    assert!(k.cuenta() > llamadas1, "una cota que si se usa debe volver a llamar al kernel");
+    assert!(
+        k.cuenta() > llamadas1,
+        "una cota que si se usa debe volver a llamar al kernel"
+    );
     assert_eq!(out2.stats.aciertos_cache, 0);
     assert_ne!(out1.clave(extrude_id), out2.clave(extrude_id));
 }

@@ -20,11 +20,11 @@
 use crate::agx;
 use crate::camara::Camara;
 use crate::malla::MeshProvider;
+use crate::malla::TablaDeMateriales;
 use crate::raster::{self, Cobertura, Lienzo, VerticeClip};
 use crate::sombreado::{exposicion_medida, sombrear};
-use crate::malla::TablaDeMateriales;
 use forge_math::DVec3;
-use forge_render_api::{Renderer, RenderStats, RenderTarget, SceneView};
+use forge_render_api::{RenderStats, RenderTarget, Renderer, SceneView};
 
 /// Renderiza con `forge-render-cpu`. Genérico sobre [`MeshProvider`]: ver la
 /// nota de `crate::malla` sobre por qué la resolución de malla es un trait y
@@ -56,7 +56,12 @@ struct Resultado {
 
 impl<M: MeshProvider> SoftwareRenderer<M> {
     pub fn nueva(mallas: M, materiales: TablaDeMateriales) -> Self {
-        SoftwareRenderer { mallas, materiales, modo_orientacion: false, ultimas_stats: RenderStats::default() }
+        SoftwareRenderer {
+            mallas,
+            materiales,
+            modo_orientacion: false,
+            ultimas_stats: RenderStats::default(),
+        }
     }
 
     /// Últimas estadísticas calculadas, sin volver a renderizar.
@@ -134,7 +139,11 @@ impl<M: MeshProvider> SoftwareRenderer<M> {
 
             for tri in malla.indices.chunks_exact(3) {
                 let (i0, i1, i2) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
-                let locales = [malla.positions[i0], malla.positions[i1], malla.positions[i2]];
+                let locales = [
+                    malla.positions[i0],
+                    malla.positions[i1],
+                    malla.positions[i2],
+                ];
                 let mundo = locales.map(|p| instancia.transform.transform_point3(p));
 
                 let normales = if malla.normals.is_empty() {
@@ -143,20 +152,36 @@ impl<M: MeshProvider> SoftwareRenderer<M> {
                     // uniforme, porque el producto vectorial de dos aristas en
                     // mundo da la normal correcta sin importar cómo se llegó
                     // ahí.
-                    let n = (mundo[1] - mundo[0]).cross(mundo[2] - mundo[0]).normalize_or_zero();
+                    let n = (mundo[1] - mundo[0])
+                        .cross(mundo[2] - mundo[0])
+                        .normalize_or_zero();
                     [n, n, n]
                 } else {
                     [
-                        instancia.transform.transform_vector3(malla.normals[i0]).normalize_or_zero(),
-                        instancia.transform.transform_vector3(malla.normals[i1]).normalize_or_zero(),
-                        instancia.transform.transform_vector3(malla.normals[i2]).normalize_or_zero(),
+                        instancia
+                            .transform
+                            .transform_vector3(malla.normals[i0])
+                            .normalize_or_zero(),
+                        instancia
+                            .transform
+                            .transform_vector3(malla.normals[i1])
+                            .normalize_or_zero(),
+                        instancia
+                            .transform
+                            .transform_vector3(malla.normals[i2])
+                            .normalize_or_zero(),
                     ]
                 };
 
                 let clip: [VerticeClip; 3] = std::array::from_fn(|k| {
                     let (xyz, w) =
                         crate::camara::proyectar_homogeneo(&camara.vista_proyeccion, mundo[k]);
-                    VerticeClip { clip: xyz, clip_w: w, rel: mundo[k] - camara.ojo, normal: normales[k] }
+                    VerticeClip {
+                        clip: xyz,
+                        clip_w: w,
+                        rel: mundo[k] - camara.ojo,
+                        normal: normales[k],
+                    }
                 });
 
                 let poligono = raster::recortar_cercano(clip);
@@ -176,10 +201,15 @@ impl<M: MeshProvider> SoftwareRenderer<M> {
                     // un sólido cerrado depende de verlas (es lo que verifica
                     // el test de orientación con control positivo).
                     raster::rasterizar(&mut lienzo, [p0, p1, p2], true, |i, frag| {
-                        let rel = DVec3::new(frag.rel[0] as f64, frag.rel[1] as f64, frag.rel[2] as f64);
+                        let rel =
+                            DVec3::new(frag.rel[0] as f64, frag.rel[1] as f64, frag.rel[2] as f64);
                         let p = camara.ojo + rel;
-                        let n = DVec3::new(frag.normal[0] as f64, frag.normal[1] as f64, frag.normal[2] as f64)
-                            .normalize_or_zero();
+                        let n = DVec3::new(
+                            frag.normal[0] as f64,
+                            frag.normal[1] as f64,
+                            frag.normal[2] as f64,
+                        )
+                        .normalize_or_zero();
                         let v = (-rel).normalize_or_zero();
                         color[i] = sombrear(p, n, v, &material, view.lights, view.environment);
                     });
@@ -202,7 +232,15 @@ impl<M: MeshProvider> SoftwareRenderer<M> {
             .collect();
 
         self.ultimas_stats = stats;
-        (Resultado { ancho, alto, color, cobertura }, stats)
+        (
+            Resultado {
+                ancho,
+                alto,
+                color,
+                cobertura,
+            },
+            stats,
+        )
     }
 }
 
@@ -229,7 +267,12 @@ impl<M: MeshProvider> Renderer for SoftwareRenderer<M> {
                 [255u8, 0, 255, 255]
             } else {
                 let lineal = agx::agx(res.color[i]);
-                [agx::a_byte(lineal[0]), agx::a_byte(lineal[1]), agx::a_byte(lineal[2]), 255]
+                [
+                    agx::a_byte(lineal[0]),
+                    agx::a_byte(lineal[1]),
+                    agx::a_byte(lineal[2]),
+                    255,
+                ]
             };
             salida[i * 4..i * 4 + 4].copy_from_slice(&rgba);
         }

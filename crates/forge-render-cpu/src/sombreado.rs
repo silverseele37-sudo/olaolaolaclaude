@@ -134,8 +134,12 @@ pub fn exposicion_medida(view: &SceneView<'_>) -> f32 {
     }
     for l in view.lights {
         e_media += match *l {
-            Light::Directional { color, intensity, .. } => luminancia(color) * intensity,
-            Light::Point { color, intensity, .. } => luminancia(color) * intensity,
+            Light::Directional {
+                color, intensity, ..
+            } => luminancia(color) * intensity,
+            Light::Point {
+                color, intensity, ..
+            } => luminancia(color) * intensity,
         };
     }
     if e_media > 1e-6 {
@@ -216,13 +220,29 @@ pub fn sombrear(
     let norm_esp = (esp + 8.0) / (8.0 * std::f32::consts::PI);
     for luz in lights {
         let (dir_l, radiancia) = match *luz {
-            Light::Directional { direction, color, intensity } => {
+            Light::Directional {
+                direction,
+                color,
+                intensity,
+            } => {
                 // `direction` es hacia dónde viaja la luz; la BRDF quiere el
                 // vector hacia la fuente.
                 let d = -direction.normalize_or_zero();
-                (d, [color[0] * intensity, color[1] * intensity, color[2] * intensity])
+                (
+                    d,
+                    [
+                        color[0] * intensity,
+                        color[1] * intensity,
+                        color[2] * intensity,
+                    ],
+                )
             }
-            Light::Point { position, color, intensity, radius_mm } => {
+            Light::Point {
+                position,
+                color,
+                intensity,
+                radius_mm,
+            } => {
                 let delta = position - p;
                 let dist = delta.length();
                 if dist < 1e-9 {
@@ -235,7 +255,11 @@ pub fn sombrear(
                 let att = 1.0 / (d_m * d_m);
                 (
                     delta / dist,
-                    [color[0] * intensity * att, color[1] * intensity * att, color[2] * intensity * att],
+                    [
+                        color[0] * intensity * att,
+                        color[1] * intensity * att,
+                        color[2] * intensity * att,
+                    ],
                 )
             }
         };
