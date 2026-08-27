@@ -845,3 +845,148 @@ fn reducir_un_octogono_a_triangulo_sin_candidata_orientada_rompe_la_referencia()
     );
     assert_eq!(resolucion.valor(), None);
 }
+
+// ---------------------------------------------------------------------------
+// Sección 3 — supresión de un nodo intermedio.
+//
+// Nota sobre el radio elegido (30, no 10 como en el resto del archivo): con
+// un hexágono de radio 10 y altura 6 este caso salía **`Broken` por
+// ambigüedad**, no `Rebound` — un hallazgo real, no un error de cálculo.
+// `Resolver::parecido` pesa la normal y la medida al 80 % combinado y la
+// posición solo al 20 % (a propósito: la posición es justo lo que una
+// edición típica desplaza). Pero las seis aristas verticales de *cualquier*
+// prisma comparten dirección y longitud exactas entre sí — son la misma
+// pieza repetida alrededor del eje — así que ahí la posición es el **único**
+// término que puede distinguir una candidata de otra, y con un radio
+// pequeño frente a la altura, la vecina más cercana (a 60°) queda demasiado
+// cerca en puntuación (0.875 contra el 1.0 de la correcta) para superar el
+// margen (0.15): dos candidatas empatan y la referencia se rompe, aunque una
+// de las dos sea un acierto geométrico exacto. Subir el radio (más separación
+// física entre aristas vecinas) lo despeja. Esto **no** es un bug de
+// `forge-param` — es la consecuencia correcta, aunque no obvia, de una
+// fórmula de pesos razonable — pero sí es un límite real: **las aristas de
+// piezas con simetría rotacional son inusualmente propensas a romperse por
+// ambigüedad en la capa 2**, incluso cuando la candidata correcta es un
+// acierto perfecto. Ver el informe final para más detalle.
+// ---------------------------------------------------------------------------
+
+/// Suprimir un `Fillet` intermedio no lo borra: sus parámetros siguen ahí,
+/// pero su salida pasa a ser la de su propia entrada sin tocarla (`tree.rs`,
+/// doc de `suprimir`). El `Chamfer` que colgaba de él pasa entonces a leer
+/// la topología **cruda** del extrude, sin el bisel de por medio. El mark
+/// de las caras heredadas del fillet ya no existe — pero la geometría en ese
+/// punto es idéntica (el fillet estaba en el lado opuesto del prisma), así
+/// que la capa 2 la encuentra exacta.
+#[test]
+fn suprimir_un_fillet_intermedio_revincula_la_arista_del_chamfer_por_firma() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let fillet_id = fid(3);
+    let chamfer_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_fillet = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    let r0 = medir("antes_de_suprimir", &k, &tree, chamfer_id);
+    assert!(r0.exacta());
+    assert_eq!(r0.valor(), Some(ref_chamfer.objetivo));
+
+    tree.suprimir(fillet_id, true).unwrap();
+
+    let topo_extrude_cruda = topologia_de(&k, &tree, extrude_id);
+    let esperado = arista_vertical_en(&topo_extrude_cruda, altura, 180.0);
+
+    let r1 = medir("tras_suprimir_el_fillet", &k, &tree, chamfer_id);
+    assert!(!r1.rota());
+    assert!(
+        !r1.exacta(),
+        "deberia haber perdido el linaje exacto al suprimir el nodo intermedio, salio {:?}",
+        r1.binding
+    );
+    assert_eq!(r1.valor(), Some(esperado.id));
+}
+
+/// La misma situación con los roles cambiados: un `Chamfer` suprimido en
+/// medio de la cadena, y un `Fillet` posterior que pierde su linaje.
+#[test]
+fn suprimir_un_chamfer_intermedio_revincula_la_arista_de_un_fillet_posterior() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let chamfer_id = fid(3);
+    let fillet_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, extrude_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let ref_fillet = agregar_fillet_sobre(&k, &mut tree, chamfer_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    let r0 = medir("antes_de_suprimir", &k, &tree, fillet_id);
+    assert!(r0.exacta());
+    assert_eq!(r0.valor(), Some(ref_fillet.objetivo));
+
+    tree.suprimir(chamfer_id, true).unwrap();
+
+    let topo_extrude_cruda = topologia_de(&k, &tree, extrude_id);
+    let esperado = arista_vertical_en(&topo_extrude_cruda, altura, 180.0);
+
+    let r1 = medir("tras_suprimir_el_chamfer", &k, &tree, fillet_id);
+    assert!(!r1.rota());
+    assert!(
+        !r1.exacta(),
+        "deberia haber perdido el linaje exacto al suprimir el nodo intermedio, salio {:?}",
+        r1.binding
+    );
+    assert_eq!(r1.valor(), Some(esperado.id));
+}
+
+/// Suprimir no destruye parámetros (`tree.rs`): quitar la supresión tiene
+/// que devolver **exactamente** la genealogía original, no una que
+/// "casualmente" apunte al mismo sitio por firma.
+#[test]
+fn des_suprimir_un_nodo_restaura_la_genealogia_exacta_original() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let fillet_id = fid(3);
+    let chamfer_id = fid(4);
+    let altura = 6.0;
+    let mut tree = arbol_extrude_poligono(
+        sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+    );
+    let _ref_fillet = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+        arista_vertical_en(t, altura, 0.0)
+    });
+    let ref_chamfer = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+        arista_vertical_en(t, altura, 180.0)
+    });
+
+    tree.suprimir(fillet_id, true).unwrap();
+    let r_suprimido = medir("suprimido", &k, &tree, chamfer_id);
+    assert!(
+        !r_suprimido.exacta(),
+        "control: debe haber perdido el linaje mientras esta suprimido"
+    );
+
+    tree.suprimir(fillet_id, false).unwrap();
+    let r_restaurado = medir("restaurado", &k, &tree, chamfer_id);
+    assert!(
+        r_restaurado.exacta(),
+        "al quitar la supresion deberia recuperar el linaje exacto, salio {:?}",
+        r_restaurado.binding
+    );
+    assert_eq!(r_restaurado.valor(), Some(ref_chamfer.objetivo));
+}
