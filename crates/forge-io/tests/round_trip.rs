@@ -85,7 +85,10 @@ fn documento(n: usize, blobs: &dyn BlobStore) -> Document {
         5 => {
             doc.edit("bordes", |tx| {
                 let e = tx.spawn_with_id(EntityId::from_u128(1));
-                tx.set(e, Name("pieza «ñandú» — 図面 · 🔩 · \"comillas\" y \\barras".into()));
+                tx.set(
+                    e,
+                    Name("pieza «ñandú» — 図面 · 🔩 · \"comillas\" y \\barras".into()),
+                );
                 let mut t = Transform::IDENTITY;
                 t.translation = DVec3::new(f64::MAX, f64::MIN_POSITIVE, -0.0);
                 t.scale = DVec3::new(1e-300, 1e300, 1.0);
@@ -101,8 +104,9 @@ fn documento(n: usize, blobs: &dyn BlobStore) -> Document {
         // mezclas
         _ => {
             let cuantas = 5 + rng.below(120);
-            let blobs_unicos: Vec<BlobHash> =
-                (0..1 + rng.below(6)).map(|k| poner_blob(format!("blob-{n}-{k}").as_bytes())).collect();
+            let blobs_unicos: Vec<BlobHash> = (0..1 + rng.below(6))
+                .map(|k| poner_blob(format!("blob-{n}-{k}").as_bytes()))
+                .collect();
             doc.edit("generado", |tx| {
                 for i in 1..=cuantas as u128 {
                     let e = tx.spawn_with_id(EntityId::from_u128(i));
@@ -128,7 +132,10 @@ fn documento(n: usize, blobs: &dyn BlobStore) -> Document {
                         tx.set(e, Geometry(g));
                     }
                     if i > 1 && rng.below(10) < 4 {
-                        tx.set(e, Parent(EntityId::from_u128(1 + rng.below(i as u64) as u128)));
+                        tx.set(
+                            e,
+                            Parent(EntityId::from_u128(1 + rng.below(i as u64) as u128)),
+                        );
                     }
                 }
             });
@@ -180,7 +187,11 @@ fn ida_y_vuelta_con_igualdad_estructural_en_20_documentos() {
 
     // Los 20 documentos tienen que ser realmente distintos entre si.
     let distintas: std::collections::BTreeSet<_> = huellas.iter().collect();
-    assert_eq!(distintas.len(), 20, "hay documentos generados identicos: el test cubre menos de lo que dice");
+    assert_eq!(
+        distintas.len(),
+        20,
+        "hay documentos generados identicos: el test cubre menos de lo que dice"
+    );
 }
 
 /// La deduplicación del almacén se propaga al archivo sin código extra: cien
@@ -195,8 +206,16 @@ fn cien_instancias_de_una_malla_guardan_un_solo_blob() {
 
     let f = std::fs::File::open(&p).unwrap();
     let zip = zip::ZipArchive::new(f).unwrap();
-    let blobs: Vec<&str> = zip.file_names().filter(|n| n.starts_with("blobs/")).collect();
-    assert_eq!(blobs.len(), 1, "se guardaron {} blobs para una sola malla", blobs.len());
+    let blobs: Vec<&str> = zip
+        .file_names()
+        .filter(|n| n.starts_with("blobs/"))
+        .collect();
+    assert_eq!(
+        blobs.len(),
+        1,
+        "se guardaron {} blobs para una sola malla",
+        blobs.len()
+    );
     assert_eq!(doc.snapshot().iter::<Geometry>().count(), 100);
 }
 
@@ -205,13 +224,22 @@ fn el_manifiesto_declara_unidades_y_ejes() {
     let d = tempfile::tempdir().unwrap();
     let s = MemoryBlobStore::new();
     let p = d.path().join("m.forge");
-    save(&p, &documento(1, &s).snapshot(), &s, &SaveOptions::default()).unwrap();
+    save(
+        &p,
+        &documento(1, &s).snapshot(),
+        &s,
+        &SaveOptions::default(),
+    )
+    .unwrap();
 
     let m = read_manifest(&p).unwrap();
     assert_eq!(m.format, "forge");
     assert_eq!(m.format_version, FORMAT_VERSION);
     assert_eq!(m.units, "mm");
-    assert_eq!(m.up_axis, "Z", "la convencion de ejes tiene que estar EN el archivo");
+    assert_eq!(
+        m.up_axis, "Z",
+        "la convencion de ejes tiene que estar EN el archivo"
+    );
     assert_eq!(m.tolerance_confusion_mm, 1e-7);
 }
 
@@ -222,17 +250,34 @@ fn el_archivo_es_inspeccionable_con_herramientas_estandar() {
     let d = tempfile::tempdir().unwrap();
     let s = MemoryBlobStore::new();
     let p = d.path().join("abierto.forge");
-    save(&p, &documento(7, &s).snapshot(), &s, &SaveOptions::default()).unwrap();
+    save(
+        &p,
+        &documento(7, &s).snapshot(),
+        &s,
+        &SaveOptions::default(),
+    )
+    .unwrap();
 
     let f = std::fs::File::open(&p).unwrap();
     let mut zip = zip::ZipArchive::new(f).unwrap();
     let nombres: Vec<String> = zip.file_names().map(String::from).collect();
-    for esperado in ["manifest.json", "document.cbor", "document.json", "refs/history"] {
-        assert!(nombres.iter().any(|n| n == esperado), "falta {esperado} en el contenedor");
+    for esperado in [
+        "manifest.json",
+        "document.cbor",
+        "document.json",
+        "refs/history",
+    ] {
+        assert!(
+            nombres.iter().any(|n| n == esperado),
+            "falta {esperado} en el contenedor"
+        );
     }
     // el manifiesto va primero y sin comprimir
     assert_eq!(zip.by_index(0).unwrap().name(), "manifest.json");
-    assert_eq!(zip.by_index(0).unwrap().compression(), zip::CompressionMethod::Stored);
+    assert_eq!(
+        zip.by_index(0).unwrap().compression(),
+        zip::CompressionMethod::Stored
+    );
     // y document.json es JSON valido
     let mut s2 = String::new();
     std::io::Read::read_to_string(&mut zip.by_name("document.json").unwrap(), &mut s2).unwrap();
@@ -246,10 +291,20 @@ fn componente_desconocido_falla_en_vez_de_perder_datos() {
     let d = tempfile::tempdir().unwrap();
     let s = MemoryBlobStore::new();
     let p = d.path().join("x.forge");
-    save(&p, &documento(1, &s).snapshot(), &s, &SaveOptions::default()).unwrap();
+    save(
+        &p,
+        &documento(1, &s).snapshot(),
+        &s,
+        &SaveOptions::default(),
+    )
+    .unwrap();
 
     // registro vacio: no conoce ni forge.name
-    let r = load(&p, Arc::new(ComponentRegistry::empty()), &MemoryBlobStore::new());
+    let r = load(
+        &p,
+        Arc::new(ComponentRegistry::empty()),
+        &MemoryBlobStore::new(),
+    );
     match r {
         Err(IoError::Doc(DocError::UnknownComponent(n))) => assert_eq!(n, "forge.name"),
         otro => panic!("se esperaba UnknownComponent, salio {otro:?}"),
@@ -261,15 +316,21 @@ fn version_de_formato_futura_se_rechaza_con_un_mensaje_util() {
     let d = tempfile::tempdir().unwrap();
     let s = MemoryBlobStore::new();
     let p = d.path().join("futuro.forge");
-    save(&p, &documento(1, &s).snapshot(), &s, &SaveOptions::default()).unwrap();
+    save(
+        &p,
+        &documento(1, &s).snapshot(),
+        &s,
+        &SaveOptions::default(),
+    )
+    .unwrap();
 
     // reescribir el zip con format_version = 999
     let contenido = std::fs::read(&p).unwrap();
     let mut zin = zip::ZipArchive::new(std::io::Cursor::new(contenido)).unwrap();
     let salida = std::fs::File::create(&p).unwrap();
     let mut zout = zip::ZipWriter::new(salida);
-    let op = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let op =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for i in 0..zin.len() {
         let mut f = zin.by_index(i).unwrap();
         let nombre = f.name().to_string();
@@ -286,7 +347,10 @@ fn version_de_formato_futura_se_rechaza_con_un_mensaje_util() {
     zout.finish().unwrap();
 
     match read_manifest(&p) {
-        Err(IoError::VersionFutura { encontrada, soportada }) => {
+        Err(IoError::VersionFutura {
+            encontrada,
+            soportada,
+        }) => {
             assert_eq!(encontrada, 999);
             assert_eq!(soportada, FORMAT_VERSION);
         }
@@ -302,10 +366,17 @@ fn guardar_sin_blobs_falla_al_cargar_en_un_almacen_vacio() {
     let escritos = MemoryBlobStore::new();
     let doc = documento(4, &escritos);
     let p = d.path().join("flaco.forge");
-    let opts = SaveOptions { include_blobs: false, ..Default::default() };
+    let opts = SaveOptions {
+        include_blobs: false,
+        ..Default::default()
+    };
     save(&p, &doc.snapshot(), &escritos, &opts).unwrap();
 
-    match load(&p, Arc::new(ComponentRegistry::new()), &MemoryBlobStore::new()) {
+    match load(
+        &p,
+        Arc::new(ComponentRegistry::new()),
+        &MemoryBlobStore::new(),
+    ) {
         Err(IoError::BlobAusente(_)) => {}
         otro => panic!("se esperaba BlobAusente, salio {otro:?}"),
     }

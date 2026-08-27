@@ -150,7 +150,10 @@ pub fn migrar(c: &Connection) -> Result<Estado> {
             Ok(Estado::AlDia)
         }
         2 => Ok(Estado::AlDia),
-        v => Err(AssetError::EsquemaFuturo { encontrada: v, soportada: ESQUEMA_VERSION }),
+        v => Err(AssetError::EsquemaFuturo {
+            encontrada: v,
+            soportada: ESQUEMA_VERSION,
+        }),
     }
 }
 
@@ -197,7 +200,8 @@ mod tests {
     fn migrar_de_v1_a_v2_cambia_los_indices_y_conserva_los_datos() {
         let c = Connection::open_in_memory().expect("memoria");
         c.execute_batch(V1).expect("v1");
-        c.pragma_update(None, "user_version", 1i64).expect("marcar v1");
+        c.pragma_update(None, "user_version", 1i64)
+            .expect("marcar v1");
         c.execute(
             "INSERT INTO activos (id, nombre, nombre_norm, tipo, notas, notas_norm, tam,
                                   importado, modificado, origen, version_vigente, hash_vigente)
@@ -231,7 +235,9 @@ mod tests {
             ],
             "la migracion no reemplazo los indices"
         );
-        let n: i64 = c.query_row("SELECT COUNT(*) FROM activos", [], |r| r.get(0)).expect("contar");
+        let n: i64 = c
+            .query_row("SELECT COUNT(*) FROM activos", [], |r| r.get(0))
+            .expect("contar");
         assert_eq!(n, 1, "la migracion perdio datos");
     }
 
@@ -251,9 +257,13 @@ mod tests {
     fn una_base_del_futuro_se_rechaza_en_vez_de_rehacerse() {
         let c = Connection::open_in_memory().expect("memoria");
         migrar(&c).expect("crear");
-        c.pragma_update(None, "user_version", 99i64).expect("marcar futuro");
+        c.pragma_update(None, "user_version", 99i64)
+            .expect("marcar futuro");
         match migrar(&c) {
-            Err(AssetError::EsquemaFuturo { encontrada, soportada }) => {
+            Err(AssetError::EsquemaFuturo {
+                encontrada,
+                soportada,
+            }) => {
                 assert_eq!(encontrada, 99);
                 assert_eq!(soportada, ESQUEMA_VERSION);
             }

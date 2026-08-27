@@ -54,32 +54,113 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         ("forge-doc", &["forge-math", "forge-store"]),
         ("forge-io", &["forge-doc", "forge-store", "forge-math"]),
         // --- contratos (sin lógica) ---
-        ("forge-kernel-api", &["forge-math", "forge-doc", "forge-store"]),
-        ("forge-render-api", &["forge-math", "forge-doc", "forge-store"]),
+        (
+            "forge-kernel-api",
+            &["forge-math", "forge-doc", "forge-store"],
+        ),
+        (
+            "forge-render-api",
+            &["forge-math", "forge-doc", "forge-store"],
+        ),
         ("forge-material-api", &["forge-math"]),
         // --- los cuatro pilares: ninguno menciona a otro ---
-        ("forge-param", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api", "forge-kernel-stub"]),
-        ("forge-mesh", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
-        ("forge-render", &["forge-math", "forge-store", "forge-doc", "forge-render-api", "forge-material-api"]),
+        (
+            "forge-param",
+            &[
+                "forge-math",
+                "forge-store",
+                "forge-doc",
+                "forge-kernel-api",
+                "forge-kernel-stub",
+            ],
+        ),
+        (
+            "forge-mesh",
+            &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"],
+        ),
+        (
+            "forge-render",
+            &[
+                "forge-math",
+                "forge-store",
+                "forge-doc",
+                "forge-render-api",
+                "forge-material-api",
+            ],
+        ),
         // Rasterizador por software: implementa el mismo trait Renderer que la
         // version wgpu. No es un juguete -- es lo que permite tests por imagen
         // de referencia sin GPU, que es el hueco de verificacion mas caro que
         // tiene un motor de render (y el que cadviz identifico como el suyo).
-        ("forge-render-cpu", &["forge-math", "forge-store", "forge-doc", "forge-render-api"]),
+        (
+            "forge-render-cpu",
+            &["forge-math", "forge-store", "forge-doc", "forge-render-api"],
+        ),
         ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
         // --- implementaciones y servicios ---
-        ("forge-kernel-occt", &["forge-math", "forge-doc", "forge-kernel-api"]),
-        ("forge-kernel-stub", &["forge-math", "forge-doc", "forge-kernel-api"]),
+        (
+            "forge-kernel-occt",
+            &["forge-math", "forge-doc", "forge-kernel-api"],
+        ),
+        (
+            "forge-kernel-stub",
+            &["forge-math", "forge-doc", "forge-kernel-api"],
+        ),
         ("forge-material", &["forge-math", "forge-material-api"]),
         ("forge-assets", &["forge-math", "forge-store", "forge-doc"]),
-        ("forge-interop", &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"]),
+        (
+            "forge-interop",
+            &["forge-math", "forge-store", "forge-doc", "forge-kernel-api"],
+        ),
         ("forge-script", &["forge-math", "forge-doc", "forge-store"]),
         // --- aplicación: es la única que puede verlo todo ---
-        ("forge-ui", &["forge-math", "forge-store", "forge-doc", "forge-param", "forge-mesh", "forge-render", "forge-assets", "forge-script", "forge-render-api"]),
-        ("forge-app", &["forge-math", "forge-store", "forge-doc", "forge-io", "forge-ui", "forge-param", "forge-mesh", "forge-render", "forge-assets", "forge-script", "forge-interop", "forge-kernel-occt", "forge-material"]),
-        ("forge-runtime", &["forge-math", "forge-store", "forge-doc", "forge-io", "forge-render", "forge-material"]),
+        (
+            "forge-ui",
+            &[
+                "forge-math",
+                "forge-store",
+                "forge-doc",
+                "forge-param",
+                "forge-mesh",
+                "forge-render",
+                "forge-assets",
+                "forge-script",
+                "forge-render-api",
+            ],
+        ),
+        (
+            "forge-app",
+            &[
+                "forge-math",
+                "forge-store",
+                "forge-doc",
+                "forge-io",
+                "forge-ui",
+                "forge-param",
+                "forge-mesh",
+                "forge-render",
+                "forge-assets",
+                "forge-script",
+                "forge-interop",
+                "forge-kernel-occt",
+                "forge-material",
+            ],
+        ),
+        (
+            "forge-runtime",
+            &[
+                "forge-math",
+                "forge-store",
+                "forge-doc",
+                "forge-io",
+                "forge-render",
+                "forge-material",
+            ],
+        ),
     ];
-    m.iter().map(|(k, v)| (*k, v.iter().copied().collect())).collect()
+    m.iter()
+        .map(|(k, v)| (*k, v.iter().copied().collect()))
+        .collect()
 }
 
 /// Funcion pura, para poder probar que el guardia **detecta** algo y no solo
@@ -122,26 +203,47 @@ fn el_guardia_detecta_las_aristas_prohibidas() {
 
     // un pilar mirando a otro pilar
     let mut malo = BTreeMap::new();
-    malo.insert("forge-render".to_string(), ["forge-param".to_string()].into_iter().collect());
+    malo.insert(
+        "forge-render".to_string(),
+        ["forge-param".to_string()].into_iter().collect(),
+    );
     let v = violaciones(&malo, &p);
     assert_eq!(v.len(), 1, "no detecto pilar -> pilar");
     assert!(v[0].contains("forge-render -> forge-param"));
 
     // el nucleo mirando hacia arriba
     let mut malo2 = BTreeMap::new();
-    malo2.insert("forge-doc".to_string(), ["forge-render".to_string()].into_iter().collect());
-    assert_eq!(violaciones(&malo2, &p).len(), 1, "no detecto nucleo -> pilar");
+    malo2.insert(
+        "forge-doc".to_string(),
+        ["forge-render".to_string()].into_iter().collect(),
+    );
+    assert_eq!(
+        violaciones(&malo2, &p).len(),
+        1,
+        "no detecto nucleo -> pilar"
+    );
 
     // la fuga de cadviz: render arrastrando el kernel
     let mut malo3 = BTreeMap::new();
-    malo3.insert("forge-render".to_string(), ["forge-kernel-occt".to_string()].into_iter().collect());
-    assert_eq!(violaciones(&malo3, &p).len(), 1, "no detecto render -> kernel");
+    malo3.insert(
+        "forge-render".to_string(),
+        ["forge-kernel-occt".to_string()].into_iter().collect(),
+    );
+    assert_eq!(
+        violaciones(&malo3, &p).len(),
+        1,
+        "no detecto render -> kernel"
+    );
 
     // un crate nuevo sin declarar tambien es una violacion: anadir un crate
     // obliga a decidir sus fronteras en el mismo commit
     let mut malo4 = BTreeMap::new();
     malo4.insert("forge-sorpresa".to_string(), BTreeSet::new());
-    assert_eq!(violaciones(&malo4, &p).len(), 1, "no detecto crate sin declarar");
+    assert_eq!(
+        violaciones(&malo4, &p).len(),
+        1,
+        "no detecto crate sin declarar"
+    );
 
     // y el grafo real sigue limpio
     assert!(violaciones(&grafo(), &p).is_empty());
@@ -151,7 +253,13 @@ fn el_guardia_detecta_las_aristas_prohibidas() {
 /// explique *por que* cuando alguien la rompa.
 #[test]
 fn los_cuatro_pilares_no_se_conocen_entre_si() {
-    let pilares = ["forge-param", "forge-mesh", "forge-render", "forge-render-cpu", "forge-assets"];
+    let pilares = [
+        "forge-param",
+        "forge-mesh",
+        "forge-render",
+        "forge-render-cpu",
+        "forge-assets",
+    ];
     let g = grafo();
     for (crate_, deps) in &g {
         if !pilares.contains(&crate_.as_str()) {
@@ -176,15 +284,15 @@ fn los_cuatro_pilares_no_se_conocen_entre_si() {
 fn el_render_no_arrastra_el_kernel_ni_su_cadena_de_cpp() {
     let g = grafo();
     for r in ["forge-render", "forge-render-cpu"] {
-    if let Some(deps) = g.get(r) {
-        for d in deps {
-            assert!(
-                !d.starts_with("forge-kernel"),
-                "{r} -> {d}: el renderer consume una vista aplanada de la escena, \
+        if let Some(deps) = g.get(r) {
+            for d in deps {
+                assert!(
+                    !d.starts_with("forge-kernel"),
+                    "{r} -> {d}: el renderer consume una vista aplanada de la escena, \
                  no el kernel. Los tipos de datos compartidos van a forge-render-api."
-            );
+                );
+            }
         }
-    }
     }
 }
 
@@ -195,13 +303,19 @@ fn el_nucleo_no_depende_de_nadie_por_encima() {
     let g = grafo();
     for base in ["forge-math", "forge-store"] {
         if let Some(deps) = g.get(base) {
-            assert!(deps.is_empty(), "{base} deberia no tener dependencias forge-*, tiene {deps:?}");
+            assert!(
+                deps.is_empty(),
+                "{base} deberia no tener dependencias forge-*, tiene {deps:?}"
+            );
         }
     }
     if let Some(deps) = g.get("forge-doc") {
         let ok: BTreeSet<&str> = ["forge-math", "forge-store"].into_iter().collect();
         for d in deps {
-            assert!(ok.contains(d.as_str()), "forge-doc -> {d}: el documento no conoce ningun pilar");
+            assert!(
+                ok.contains(d.as_str()),
+                "forge-doc -> {d}: el documento no conoce ningun pilar"
+            );
         }
     }
 }

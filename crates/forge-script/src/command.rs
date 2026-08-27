@@ -43,7 +43,9 @@ pub enum Command {
         name: Option<String>,
     },
     /// Borra una entidad y todos sus componentes.
-    Despawn { entity: EntityId },
+    Despawn {
+        entity: EntityId,
+    },
     SetName {
         entity: EntityId,
         name: String,
@@ -65,13 +67,17 @@ pub enum Command {
         entity: EntityId,
         payload: GeometryPayload,
     },
-    ClearGeometry { entity: EntityId },
+    ClearGeometry {
+        entity: EntityId,
+    },
 
     // --- transversal (§9) ---
     Undo,
     Redo,
     /// Abre una entrada de undo compuesta. Ver [`CommandBus`].
-    BeginGroup { label: String },
+    BeginGroup {
+        label: String,
+    },
     EndGroup,
 }
 
@@ -87,7 +93,9 @@ impl Command {
             Command::SetTransform { .. } => "mover".into(),
             Command::SetVisible { visible: true, .. } => "mostrar".into(),
             Command::SetVisible { visible: false, .. } => "ocultar".into(),
-            Command::SetParent { parent: Some(_), .. } => "emparentar".into(),
+            Command::SetParent {
+                parent: Some(_), ..
+            } => "emparentar".into(),
             Command::SetParent { parent: None, .. } => "desemparentar".into(),
             Command::SetGeometry { .. } => "asignar geometría".into(),
             Command::ClearGeometry { .. } => "quitar geometría".into(),
@@ -220,10 +228,16 @@ pub enum CommandOutcome {
     },
     /// El comando quedó en cola dentro de un grupo abierto. El id, si lo hay, ya
     /// está resuelto: un script puede seguir usándolo sin esperar al `EndGroup`.
-    Queued { entity: Option<EntityId> },
-    GroupBegan { label: String },
+    Queued {
+        entity: Option<EntityId>,
+    },
+    GroupBegan {
+        label: String,
+    },
     /// Undo/Redo: el cursor del historial se movió, no hay versión nueva.
-    Moved { to: VersionId },
+    Moved {
+        to: VersionId,
+    },
 }
 
 impl CommandOutcome {
@@ -281,13 +295,21 @@ impl Default for CommandBus {
 
 impl CommandBus {
     pub fn new() -> Self {
-        CommandBus { grupo: None, log: CommandLog::default(), grabando: true }
+        CommandBus {
+            grupo: None,
+            log: CommandLog::default(),
+            grabando: true,
+        }
     }
 
     /// Bus que no graba. Lo usa [`CommandLog::replay`]: reproducir un log no
     /// debe volver a grabarlo.
     pub fn sin_grabar() -> Self {
-        CommandBus { grupo: None, log: CommandLog::default(), grabando: false }
+        CommandBus {
+            grupo: None,
+            log: CommandLog::default(),
+            grabando: false,
+        }
     }
 
     pub fn log(&self) -> &CommandLog {
@@ -313,16 +335,25 @@ impl CommandBus {
                     return Err(CommandError::GrupoAnidado(g.label.clone()));
                 }
                 let label = label.clone();
-                self.grupo = Some(Grupo { label: label.clone(), pendientes: Vec::new() });
+                self.grupo = Some(Grupo {
+                    label: label.clone(),
+                    pendientes: Vec::new(),
+                });
                 self.grabar(cmd);
                 Ok(CommandOutcome::GroupBegan { label })
             }
 
             Command::EndGroup => {
-                let g = self.grupo.take().ok_or(CommandError::EndGroupSinBeginGroup)?;
+                let g = self
+                    .grupo
+                    .take()
+                    .ok_or(CommandError::EndGroupSinBeginGroup)?;
                 let version = aplicar_lote(doc, &g.pendientes, &g.label)?;
                 self.grabar(cmd);
-                Ok(CommandOutcome::Applied { version, entity: None })
+                Ok(CommandOutcome::Applied {
+                    version,
+                    entity: None,
+                })
             }
 
             Command::Undo | Command::Redo => {
@@ -441,9 +472,10 @@ impl LabelOpt for Option<Grupo> {
 /// no es reproducible: cada reproducción crearía entidades con ids nuevos.
 fn resolver_ids(cmd: Command) -> Command {
     match cmd {
-        Command::Spawn { id: None, name } => {
-            Command::Spawn { id: Some(EntityId::new()), name }
-        }
+        Command::Spawn { id: None, name } => Command::Spawn {
+            id: Some(EntityId::new()),
+            name,
+        },
         otro => otro,
     }
 }
@@ -484,7 +516,10 @@ fn validar(cmd: &Command, existe: impl Fn(&EntityId) -> bool) -> Result<()> {
                     return Err(CommandError::EntidadDesconocida(*p));
                 }
                 if p == child {
-                    return Err(CommandError::CicloDeJerarquia { child: *child, parent: *p });
+                    return Err(CommandError::CicloDeJerarquia {
+                        child: *child,
+                        parent: *p,
+                    });
                 }
             }
         }

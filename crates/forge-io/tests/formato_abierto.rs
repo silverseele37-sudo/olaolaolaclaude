@@ -10,14 +10,20 @@
 use std::process::Command;
 use std::sync::Arc;
 
-use forge_doc::{ComponentRegistry, Document, Geometry, GeometryPayload, Name, Parent, Transform, Visible};
+use forge_doc::{
+    ComponentRegistry, Document, Geometry, GeometryPayload, Name, Parent, Transform, Visible,
+};
 use forge_io::{save, SaveOptions};
 use forge_math::DVec3;
 use forge_store::{BlobStore, MemoryBlobStore};
 
 fn hay_python() -> Option<String> {
     for c in ["python3", "python"] {
-        if Command::new(c).arg("--version").output().is_ok_and(|o| o.status.success()) {
+        if Command::new(c)
+            .arg("--version")
+            .output()
+            .is_ok_and(|o| o.status.success())
+        {
             return Some(c.to_string());
         }
     }
@@ -49,7 +55,10 @@ fn el_lector_de_referencia_en_python_lee_un_documento_recien_generado() {
             let e = tx.spawn();
             tx.set(e, Name(format!("pieza «ñ» {i}")));
             tx.set(e, Parent(raiz));
-            tx.set(e, Transform::from_translation(DVec3::new(i as f64 * 10.0, 0.0, 0.0)));
+            tx.set(
+                e,
+                Transform::from_translation(DVec3::new(i as f64 * 10.0, 0.0, 0.0)),
+            );
             tx.set(e, Geometry(GeometryPayload::Mesh(malla)));
             tx.set(e, Visible(i != 1));
         }
@@ -60,13 +69,24 @@ fn el_lector_de_referencia_en_python_lee_un_documento_recien_generado() {
     save(&p, &doc.snapshot(), &blobs, &SaveOptions::default()).unwrap();
 
     // el documento tiene que cargar tambien en FORGE, obviamente
-    let recargado =
-        forge_io::load(&p, Arc::new(ComponentRegistry::new()), &MemoryBlobStore::new()).unwrap();
-    assert_eq!(recargado.snapshot().fingerprint(), doc.snapshot().fingerprint());
+    let recargado = forge_io::load(
+        &p,
+        Arc::new(ComponentRegistry::new()),
+        &MemoryBlobStore::new(),
+    )
+    .unwrap();
+    assert_eq!(
+        recargado.snapshot().fingerprint(),
+        doc.snapshot().fingerprint()
+    );
 
     let lector = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../docs/formato/lector_referencia.py");
-    assert!(lector.exists(), "falta el lector de referencia en {}", lector.display());
+    assert!(
+        lector.exists(),
+        "falta el lector de referencia en {}",
+        lector.display()
+    );
 
     let salida = Command::new(&python).arg(&lector).arg(&p).output().unwrap();
     let stdout = String::from_utf8_lossy(&salida.stdout);
@@ -79,8 +99,20 @@ fn el_lector_de_referencia_en_python_lee_un_documento_recien_generado() {
     );
 
     // y tiene que haber entendido el contenido, no solo no reventar
-    for esperado in ["forge v1", "eje vertical  Z", "entidades 4", "blobs     2", "conjunto"] {
-        assert!(stdout.contains(esperado), "el lector no reporto {esperado:?}:\n{stdout}");
+    for esperado in [
+        "forge v1",
+        "eje vertical  Z",
+        "entidades 4",
+        "blobs     2",
+        "conjunto",
+    ] {
+        assert!(
+            stdout.contains(esperado),
+            "el lector no reporto {esperado:?}:\n{stdout}"
+        );
     }
-    assert!(stdout.contains("pieza «ñ» 0"), "el texto no ASCII no sobrevivio:\n{stdout}");
+    assert!(
+        stdout.contains("pieza «ñ» 0"),
+        "el texto no ASCII no sobrevivio:\n{stdout}"
+    );
 }

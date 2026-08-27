@@ -113,7 +113,10 @@ pub struct StableId {
 pub enum Binding<T> {
     Bound(T),
     /// Resuelto por firma geométrica tras un cambio de topología.
-    Rebound { value: T, confidence: f32 },
+    Rebound {
+        value: T,
+        confidence: f32,
+    },
     Broken,
 }
 
@@ -159,6 +162,13 @@ mod tests {
         let b: Binding<u32> = Binding::Broken;
         assert!(b.is_broken() && b.value().is_none());
         assert_eq!(Binding::Bound(3u32).value(), Some(3));
-        assert_eq!(Binding::Rebound { value: 4u32, confidence: 0.8 }.value(), Some(4));
+        assert_eq!(
+            Binding::Rebound {
+                value: 4u32,
+                confidence: 0.8
+            }
+            .value(),
+            Some(4)
+        );
     }
 }

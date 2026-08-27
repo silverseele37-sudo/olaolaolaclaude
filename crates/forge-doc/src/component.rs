@@ -54,7 +54,9 @@ pub(crate) struct TypedStore<C: Component> {
 
 impl<C: Component> TypedStore<C> {
     pub(crate) fn empty() -> Self {
-        TypedStore { map: Map::new_sync() }
+        TypedStore {
+            map: Map::new_sync(),
+        }
     }
 }
 
@@ -72,7 +74,9 @@ impl<C: Component> AnyStore for TypedStore<C> {
         self.map.contains_key(&e)
     }
     fn without(&self, e: EntityId) -> Arc<dyn AnyStore> {
-        Arc::new(TypedStore { map: self.map.remove(&e) })
+        Arc::new(TypedStore {
+            map: self.map.remove(&e),
+        })
     }
     fn encode(&self) -> Result<Vec<u8>> {
         // El mapa ya itera ordenado por EntityId, así que el CBOR es

@@ -103,4 +103,4 @@ pub use command::{Command, CommandBus, CommandError, CommandLog, CommandOutcome,
 pub mod lua;
 
 #[cfg(feature = "lua")]
-pub use lua::{LuaHost, Limits, ScriptError};
+pub use lua::{Limits, LuaHost, ScriptError};

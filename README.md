@@ -4,28 +4,43 @@ Entorno unificado de modelado: CAD paramétrico exacto, edición poligonal tipo 
 motor de render en tiempo real y almacén de activos versionado, sobre un único
 núcleo de datos.
 
-> **Estado: Fase 1 en curso — núcleo de datos completo.** El núcleo headless
-> —matemáticas, almacén de blobs, documento con undo unificado y contenedor
-> `.forge`— está implementado, probado y con demo. Falta el visor 3D, que
-> necesita GPU. La Fase 0 (arquitectura y decisiones) está cerrada.
+> **Estado: cuatro pilares en pie, sin GPU todavía.** El núcleo de datos, el
+> kernel geométrico, la frontera de dominio, la interoperabilidad y el almacén de
+> activos están implementados y probados. El visor con GPU y el puente a
+> OpenCASCADE están escritos pero **no verificados**: el contenedor de desarrollo
+> no tiene ni GPU ni OCCT. Ver [`docs/construir.md`](docs/construir.md) §4.
 
 ## Empezar
 
 ```bash
-cargo test --workspace              # 39 tests
-cargo run -p forge-io --example fase1_nucleo
+cargo test --workspace
+cargo run --example cadena_completa
 ```
 
-El demo construye una escena, muestra la deduplicación, guarda un `.forge`, lo
-recarga en un almacén vacío, comprueba igualdad estructural, deshace y rehace, e
-inyecta un fallo de escritura para enseñar que el archivo anterior sobrevive.
+El demo recorre la cadena entera y es la mejor forma de ver qué hace el proyecto:
 
-El archivo que produce se lee sin FORGE:
+```
+perfil en L → extrude → chaflán           dominio EXACTO
+        ↓ ToMesh                          la puerta de un solo sentido
+subdividir ×2 → espejo → triangular       dominio DISCRETO
+        ↓
+glTF 2.0 · OBJ · documento .forge · biblioteca de activos
+```
+
+Lo que demuestra no es que cada pieza funcione —para eso están los tests— sino
+que **la identidad sobrevive el viaje**: la cara del chaflán que se selecciona en
+el sólido exacto sigue siendo localizable después de cruzar al dominio poligonal,
+subdividir dos veces, espejar y triangular.
+
+Lo que produce se lee sin FORGE:
 
 ```bash
 unzip -l target/demo/soporte.forge
 python3 docs/formato/lector_referencia.py target/demo/soporte.forge
 ```
+
+Guía completa, incluidas las trampas de los gráficos híbridos y cómo compilar
+OpenCASCADE: [`docs/construir.md`](docs/construir.md).
 
 ## Estado por crate
 
@@ -35,10 +50,15 @@ python3 docs/formato/lector_referencia.py target/demo/soporte.forge
 | `forge-store` | blobs por contenido (BLAKE3), dedup, memoria y disco | ✅ |
 | `forge-doc` | documento inmutable, transacciones, **undo unificado**, componentes | ✅ |
 | `forge-io` | contenedor `.forge`, escritura atómica, migraciones | ✅ |
-| `forge-render` | viewport wgpu | pendiente (necesita GPU) |
-| `forge-ui` | navegación, selección | pendiente |
-| `forge-kernel-api` · `forge-kernel-occt` | puente a OpenCASCADE | Fase 2 |
-| `forge-param` · `forge-mesh` · `forge-assets` | los otros tres pilares | Fases 2–5 |
+| `forge-kernel-api` | contrato del kernel: teselado con procedencia, `StableId` | ✅ |
+| `forge-kernel-stub` | kernel analítico sin C++ — la otra mitad de la ABI doble | ✅ |
+| `forge-mesh` | **la frontera de dominio**, `ToMesh`, modificadores | ✅ |
+| `forge-interop` | glTF 2.0, OBJ, y la conversión de ejes acotada | ✅ |
+| `forge-assets` | almacén versionado, índice SQLite reconstruible | ✅ |
+| `forge-param` | árbol de features, nombrado persistente, solver 2D | en pruebas |
+| `forge-script` | bus de comandos y host de Lua | en pruebas |
+| `forge-render-cpu` | rasterizador por software — la referencia sin GPU | en pruebas |
+| `forge-render` · `forge-ui` · `forge-kernel-occt` | wgpu, visor, OpenCASCADE | **sin verificar** |
 
 Las fronteras entre crates las hace cumplir `tests/arquitectura.rs`, que falla el
 build si alguien añade una arista prohibida — con control positivo, para que no

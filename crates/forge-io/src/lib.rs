@@ -65,7 +65,10 @@ pub enum IoError {
 
 impl IoError {
     pub fn at(p: impl Into<PathBuf>, e: std::io::Error) -> Self {
-        IoError::Io { path: p.into(), source: e }
+        IoError::Io {
+            path: p.into(),
+            source: e,
+        }
     }
 }
 
@@ -110,7 +113,10 @@ fn forge_math_confusion() -> f64 {
 impl Manifest {
     fn validar(&self) -> Result<()> {
         if self.format != MAGIC {
-            return Err(IoError::NoEsForge(format!("campo `format` = {:?}", self.format)));
+            return Err(IoError::NoEsForge(format!(
+                "campo `format` = {:?}",
+                self.format
+            )));
         }
         if self.format_version > FORMAT_VERSION {
             return Err(IoError::VersionFutura {
@@ -162,7 +168,11 @@ pub struct SaveOptions {
 
 impl Default for SaveOptions {
     fn default() -> Self {
-        SaveOptions { include_json: true, include_blobs: true, history: Vec::new() }
+        SaveOptions {
+            include_json: true,
+            include_blobs: true,
+            history: Vec::new(),
+        }
     }
 }
 
@@ -192,7 +202,8 @@ fn escribir_zip<W: Write + Seek>(
 
     // 1. manifiesto, primero y sin comprimir
     let manifest = Manifest::default();
-    zw.start_file("manifest.json", guardado).map_err(|e| IoError::Corrupto(e.to_string()))?;
+    zw.start_file("manifest.json", guardado)
+        .map_err(|e| IoError::Corrupto(e.to_string()))?;
     zw.write_all(
         serde_json::to_string_pretty(&manifest)
             .map_err(|e| IoError::Corrupto(e.to_string()))?
@@ -206,18 +217,27 @@ fn escribir_zip<W: Write + Seek>(
         let data = snap
             .encode_store(name)
             .expect("store_names devolvio un nombre que no existe")?;
-        stores.push(StoreEntry { name: name.to_string(), data });
+        stores.push(StoreEntry {
+            name: name.to_string(),
+            data,
+        });
     }
-    let df = DocumentFile { entities: snap.entity_ids(), stores };
+    let df = DocumentFile {
+        entities: snap.entity_ids(),
+        stores,
+    };
 
     let mut cbor = Vec::new();
     ciborium::into_writer(&df, &mut cbor).map_err(|e| IoError::Corrupto(e.to_string()))?;
-    zw.start_file("document.cbor", comprimido).map_err(|e| IoError::Corrupto(e.to_string()))?;
+    zw.start_file("document.cbor", comprimido)
+        .map_err(|e| IoError::Corrupto(e.to_string()))?;
     zw.write_all(&cbor).map_err(corrupto)?;
 
     if opts.include_json {
-        zw.start_file("document.json", comprimido).map_err(|e| IoError::Corrupto(e.to_string()))?;
-        zw.write_all(vista_legible(&df).as_bytes()).map_err(corrupto)?;
+        zw.start_file("document.json", comprimido)
+            .map_err(|e| IoError::Corrupto(e.to_string()))?;
+        zw.write_all(vista_legible(&df).as_bytes())
+            .map_err(corrupto)?;
     }
 
     // 3. refs
@@ -230,7 +250,8 @@ fn escribir_zip<W: Write + Seek>(
             .unwrap_or_else(|| "guardado".into()),
         history: opts.history.iter().map(|(v, l)| (v.0, l.clone())).collect(),
     };
-    zw.start_file("refs/history", comprimido).map_err(|e| IoError::Corrupto(e.to_string()))?;
+    zw.start_file("refs/history", comprimido)
+        .map_err(|e| IoError::Corrupto(e.to_string()))?;
     zw.write_all(
         serde_json::to_string_pretty(&refs)
             .map_err(|e| IoError::Corrupto(e.to_string()))?
@@ -294,8 +315,7 @@ pub fn load(
 ) -> Result<Document> {
     let path = path.as_ref();
     let file = std::fs::File::open(path).map_err(|e| IoError::at(path, e))?;
-    let mut zip =
-        zip::ZipArchive::new(file).map_err(|e| IoError::NoEsForge(e.to_string()))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| IoError::NoEsForge(e.to_string()))?;
 
     // 1. manifiesto
     let manifest: Manifest = {
@@ -312,7 +332,9 @@ pub fn load(
     // 2. blobs primero: el grafo puede referenciarlos.
     let nombres: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
     for n in nombres.iter().filter(|n| n.starts_with("blobs/")) {
-        let mut f = zip.by_name(n).map_err(|e| IoError::Corrupto(e.to_string()))?;
+        let mut f = zip
+            .by_name(n)
+            .map_err(|e| IoError::Corrupto(e.to_string()))?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf).map_err(|e| IoError::at(path, e))?;
         let esperado = n.rsplit('/').next().unwrap_or_default();
@@ -383,7 +405,10 @@ pub fn read_manifest(path: impl AsRef<Path>) -> Result<Manifest> {
 fn migrar(m: &Manifest) -> Result<()> {
     match m.format_version {
         1 => Ok(()),
-        v => Err(IoError::VersionFutura { encontrada: v, soportada: FORMAT_VERSION }),
+        v => Err(IoError::VersionFutura {
+            encontrada: v,
+            soportada: FORMAT_VERSION,
+        }),
     }
 }
 

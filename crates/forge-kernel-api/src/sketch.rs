@@ -23,12 +23,22 @@ pub struct DimId(pub u32);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum SketchEntity {
-    Line { a: PointId, b: PointId },
+    Line {
+        a: PointId,
+        b: PointId,
+    },
     /// Círculo con centro y un punto del borde: así el radio es geometría y no
     /// un parámetro suelto, y las restricciones lo alcanzan igual que a todo lo
     /// demás.
-    Circle { center: PointId, rim: PointId },
-    Arc { center: PointId, start: PointId, end: PointId },
+    Circle {
+        center: PointId,
+        rim: PointId,
+    },
+    Arc {
+        center: PointId,
+        start: PointId,
+        end: PointId,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -41,17 +51,42 @@ pub enum Constraint {
     Horizontal(PointId, PointId),
     Vertical(PointId, PointId),
     /// Distancia con cota editable.
-    Distance { a: PointId, b: PointId, dim: DimId },
+    Distance {
+        a: PointId,
+        b: PointId,
+        dim: DimId,
+    },
     /// Radio con cota editable.
-    Radius { center: PointId, rim: PointId, dim: DimId },
-    Parallel { a: (PointId, PointId), b: (PointId, PointId) },
-    Perpendicular { a: (PointId, PointId), b: (PointId, PointId) },
+    Radius {
+        center: PointId,
+        rim: PointId,
+        dim: DimId,
+    },
+    Parallel {
+        a: (PointId, PointId),
+        b: (PointId, PointId),
+    },
+    Perpendicular {
+        a: (PointId, PointId),
+        b: (PointId, PointId),
+    },
     /// Los dos segmentos miden lo mismo.
-    EqualLength { a: (PointId, PointId), b: (PointId, PointId) },
+    EqualLength {
+        a: (PointId, PointId),
+        b: (PointId, PointId),
+    },
     /// Ángulo entre dos segmentos, con cota editable.
-    Angle { a: (PointId, PointId), b: (PointId, PointId), dim: DimId },
+    Angle {
+        a: (PointId, PointId),
+        b: (PointId, PointId),
+        dim: DimId,
+    },
     /// Simetría respecto del segmento `axis`.
-    Symmetric { a: PointId, b: PointId, axis: (PointId, PointId) },
+    Symmetric {
+        a: PointId,
+        b: PointId,
+        axis: (PointId, PointId),
+    },
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -100,7 +135,11 @@ impl SketchModel {
     /// diagnóstico: no tiene en cuenta restricciones redundantes.
     pub fn nominal_dof(&self) -> i64 {
         let vars = 2 * self.points.len() as i64;
-        let eqs: i64 = self.constraints.iter().map(|c| c.equation_count() as i64).sum();
+        let eqs: i64 = self
+            .constraints
+            .iter()
+            .map(|c| c.equation_count() as i64)
+            .sum();
         vars - eqs
     }
 }

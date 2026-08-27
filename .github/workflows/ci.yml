@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Los warnings rompen el build. Es deliberado: un warning tolerado es un
+  # warning permanente, y a los tres meses nadie los lee.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  verificar:
+    name: Compilar y probar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # El guardia de fronteras primero: si alguien abrió una arista prohibida,
+      # es mejor saberlo antes de gastar cinco minutos compilando lo demás.
+      - name: Guardia de fronteras entre modulos
+        run: cargo test -p forge --test arquitectura
+
+      - name: Formato
+        run: cargo fmt --all --check
+
+      # Clippy es orientativo por ahora, no bloqueante: hay 13 avisos suyos en
+      # codigo recien llegado y tumbar el build por ellos frenaria trabajo util.
+      # Los avisos de rustc si son bloqueantes (RUSTFLAGS arriba) y estan a cero.
+      - name: Clippy (orientativo)
+        continue-on-error: true
+        run: cargo clippy --workspace --all-targets
+
+      - name: Compilar
+        run: cargo build --workspace --all-targets
+
+      - name: Tests
+        run: cargo test --workspace
+
+      # El lector de referencia en Python es la prueba de que el formato es
+      # abierto de verdad. Si deja de leer un .forge recien generado, o el
+      # formato cambio sin actualizar la especificacion, o la especificacion
+      # es incorrecta. Las dos cosas son bugs.
+      - name: El formato sigue siendo abierto
+        run: |
+          cargo run --example cadena_completa
+          python3 docs/formato/lector_referencia.py target/demo/soporte.forge
+
+  # Sin GPU y sin OpenCASCADE, igual que el contenedor de desarrollo. Lo que
+  # necesita cualquiera de las dos cosas esta marcado #[ignore] y se corre a
+  # mano en una maquina que las tenga; ver docs/construir.md.

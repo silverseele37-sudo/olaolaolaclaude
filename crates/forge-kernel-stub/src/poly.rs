@@ -8,10 +8,10 @@
 //! distancia imposibles de diagnosticar.
 
 use forge_doc::{FeatureId, StableId, TopoClass};
-use forge_math::{orthonormal_basis, tol, Aabb, DVec2, DVec3};
 use forge_kernel_api::{
     EdgeKind, GeometrySignature, KernelError, KernelResult, MassProperties, TopoProvenance,
 };
+use forge_math::{orthonormal_basis, tol, Aabb, DVec2, DVec3};
 use serde::{Deserialize, Serialize};
 
 /// Hash estable y explícito (FNV-1a de 64 bits).
@@ -146,8 +146,16 @@ impl Poly {
                 acc += (a + b + c) / 4.0 * vt;
             }
         }
-        let centroide = if vol.abs() > 1e-12 { acc / vol } else { DVec3::ZERO };
-        MassProperties { volume_mm3: vol.abs(), area_mm2: area, centroid: centroide }
+        let centroide = if vol.abs() > 1e-12 {
+            acc / vol
+        } else {
+            DVec3::ZERO
+        };
+        MassProperties {
+            volume_mm3: vol.abs(),
+            area_mm2: area,
+            centroid: centroide,
+        }
     }
 
     /// Invierte todos los bucles. Se usa cuando el volumen sale negativo.
@@ -198,7 +206,9 @@ impl Poly {
         };
 
         let dentro = |a: DVec2, b: DVec2, c: DVec2, p: DVec2| {
-            let s = |u: DVec2, v: DVec2, w: DVec2| (v.x - u.x) * (w.y - u.y) - (v.y - u.y) * (w.x - u.x);
+            let s = |u: DVec2, v: DVec2, w: DVec2| {
+                (v.x - u.x) * (w.y - u.y) - (v.y - u.y) * (w.x - u.x)
+            };
             let (d1, d2, d3) = (s(p, a, b), s(p, b, c), s(p, c, a));
             let neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
             let pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
@@ -215,7 +225,11 @@ impl Poly {
             let k = restantes.len();
             let mut cortada = false;
             for i in 0..k {
-                let (ia, ib, ic) = (restantes[(i + k - 1) % k], restantes[i], restantes[(i + 1) % k]);
+                let (ia, ib, ic) = (
+                    restantes[(i + k - 1) % k],
+                    restantes[i],
+                    restantes[(i + 1) % k],
+                );
                 let (a, bb, c) = (p2[ia], p2[ib], p2[ic]);
                 let cruz = (bb.x - a.x) * (c.y - a.y) - (bb.y - a.y) * (c.x - a.x);
                 if cruz <= 0.0 {
@@ -237,7 +251,11 @@ impl Poly {
             }
         }
         if restantes.len() == 3 {
-            tris.push([cara.bucle[restantes[0]], cara.bucle[restantes[1]], cara.bucle[restantes[2]]]);
+            tris.push([
+                cara.bucle[restantes[0]],
+                cara.bucle[restantes[1]],
+                cara.bucle[restantes[2]],
+            ]);
         } else if restantes.len() > 3 {
             // Degenerado: abanico. Peor calidad, pero cubre la superficie.
             for i in 1..restantes.len() - 1 {
@@ -263,7 +281,9 @@ impl Poly {
             let m = cara.bucle.len();
             for i in 0..m {
                 let (a, b) = (cara.bucle[i], cara.bucle[(i + 1) % m]);
-                mapa.entry((a.min(b), a.max(b))).or_default().push(fi as u32);
+                mapa.entry((a.min(b), a.max(b)))
+                    .or_default()
+                    .push(fi as u32);
             }
         }
 
@@ -272,7 +292,10 @@ impl Poly {
         for ((a, b), caras) in mapa {
             if caras.len() > 2 {
                 return Err(KernelError::Degenerate {
-                    hint: format!("arista {a}-{b} compartida por {} caras (no manifold)", caras.len()),
+                    hint: format!(
+                        "arista {a}-{b} compartida por {} caras (no manifold)",
+                        caras.len()
+                    ),
                 });
             }
             let kind = match caras.len() {
@@ -293,14 +316,21 @@ impl Poly {
             // no índices. Si las caras conservan su marca al regenerar, la arista
             // también, que es justo lo que necesita el nombrado persistente.
             let m0 = self.caras[caras[0] as usize].id.mark;
-            let m1 = caras.get(1).map(|&f| self.caras[f as usize].id.mark).unwrap_or(m0);
+            let m1 = caras
+                .get(1)
+                .map(|&f| self.caras[f as usize].id.mark)
+                .unwrap_or(m0);
             let clave = (m0.min(m1), m0.max(m1));
             let k = por_par.entry(clave).or_insert(0);
             let mark = fnv(&[clave.0, clave.1, *k as u64]);
             *k += 1;
 
             out.push(Arista {
-                id: StableId { origin: owner, class: TopoClass::Edge, mark },
+                id: StableId {
+                    origin: owner,
+                    class: TopoClass::Edge,
+                    mark,
+                },
                 prov: TopoProvenance::Inherited {
                     from: self.caras[caras[0] as usize].id,
                 },
@@ -324,7 +354,12 @@ impl Poly {
 
     pub fn firma_de_arista(&self, e: &Arista) -> GeometrySignature {
         let (a, b) = (self.verts[e.a as usize], self.verts[e.b as usize]);
-        GeometrySignature::new((a + b) * 0.5, (b - a).normalize(), (b - a).length(), TopoClass::Edge)
+        GeometrySignature::new(
+            (a + b) * 0.5,
+            (b - a).normalize(),
+            (b - a).length(),
+            TopoClass::Edge,
+        )
     }
 
     /// Colapsa vértices coincidentes. Sin esto, un extrude produce vértices

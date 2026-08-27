@@ -73,17 +73,30 @@ fn busqueda_por_debajo_de_100ms_sobre_cien_mil_activos() {
     .expect("lote");
 
     let construccion = t0.elapsed();
-    assert_eq!(s.len().expect("len"), N as u64, "el corpus no tiene el tamano esperado");
+    assert_eq!(
+        s.len().expect("len"),
+        N as u64,
+        "el corpus no tiene el tamano esperado"
+    );
     println!("\n  construccion de {N} activos: {:.2?}", construccion);
 
     // Consultas de forma distinta: cada una ejercita índices diferentes.
     let casos: Vec<(&str, AssetQuery)> = vec![
         ("texto en nombre", AssetQuery::new().with_text("valvula")),
         ("texto raro", AssetQuery::new().with_text("tolerancia")),
-        ("una etiqueta", AssetQuery::new().with_any_tags(["mecanica"])),
-        ("dos etiquetas (OR)", AssetQuery::new().with_any_tags(["mecanica", "arquitectura"])),
+        (
+            "una etiqueta",
+            AssetQuery::new().with_any_tags(["mecanica"]),
+        ),
+        (
+            "dos etiquetas (OR)",
+            AssetQuery::new().with_any_tags(["mecanica", "arquitectura"]),
+        ),
         ("un tipo", AssetQuery::new().with_types([AssetType::Modelo])),
-        ("rango de tamano", AssetQuery::new().size_between(0, u64::MAX)),
+        (
+            "rango de tamano",
+            AssetQuery::new().size_between(0, u64::MAX),
+        ),
         (
             "combinada",
             AssetQuery::new()
@@ -126,7 +139,12 @@ fn busqueda_por_debajo_de_100ms_sobre_cien_mil_activos() {
         let r = s.search(q).expect("busqueda");
         let dt = t.elapsed();
 
-        println!("  {nombre:<24} {:>10} {:>12.2?} {:>12.2?}", r.len(), dt_ac, dt);
+        println!(
+            "  {nombre:<24} {:>10} {:>12.2?} {:>12.2?}",
+            r.len(),
+            dt_ac,
+            dt
+        );
         let _ = r_ac;
         if dt_ac > peor_acotada {
             peor_acotada = dt_ac;
@@ -177,7 +195,11 @@ fn el_indice_se_reconstruye_desde_cero_a_escala() {
     let dt = t.elapsed();
 
     println!("\n  reindex de {N} activos: {:.2?}  ({rep:?})\n", dt);
-    assert_eq!(s.len().expect("len"), N as u64, "la reconstruccion perdio activos");
+    assert_eq!(
+        s.len().expect("len"),
+        N as u64,
+        "la reconstruccion perdio activos"
+    );
     assert_eq!(
         s.search(&AssetQuery::new()).expect("busqueda").len(),
         antes,

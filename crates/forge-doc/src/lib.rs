@@ -66,7 +66,10 @@ struct DocData {
 
 impl DocData {
     fn new() -> Self {
-        DocData { entities: Map::new_sync(), stores: Map::new_sync() }
+        DocData {
+            entities: Map::new_sync(),
+            stores: Map::new_sync(),
+        }
     }
 }
 
@@ -155,7 +158,10 @@ impl Document {
     /// Vista inmutable del estado actual. Es lo único que ven los pilares.
     pub fn snapshot(&self) -> Snapshot {
         let v = &self.versions[self.cursor];
-        Snapshot { data: v.data.clone(), version: v.id }
+        Snapshot {
+            data: v.data.clone(),
+            version: v.id,
+        }
     }
 
     pub fn version(&self) -> VersionId {
@@ -165,7 +171,11 @@ impl Document {
     /// Abre una transacción. Toda mutación pasa por aquí (invariante I4).
     pub fn begin(&mut self) -> Transaction<'_> {
         let data = self.versions[self.cursor].data.clone();
-        Transaction { doc: self, data, done: false }
+        Transaction {
+            doc: self,
+            data,
+            done: false,
+        }
     }
 
     /// Atajo para una edición de una sola llamada.
@@ -212,7 +222,10 @@ impl Document {
 
     /// Etiquetas del historial vigente, de la más antigua a la actual.
     pub fn history(&self) -> Vec<(VersionId, &str)> {
-        self.versions[..=self.cursor].iter().map(|v| (v.id, v.label.as_str())).collect()
+        self.versions[..=self.cursor]
+            .iter()
+            .map(|v| (v.id, v.label.as_str()))
+            .collect()
     }
 
     pub fn subscribe(&mut self, f: impl Fn(&DocEvent) + Send + Sync + 'static) -> SubId {
@@ -250,7 +263,11 @@ impl Document {
             data.stores.insert_mut(st.name(), st);
         }
         let mut doc = Document::with_registry(registry);
-        doc.versions[0] = Version { id: VersionId(0), label: label.into(), data };
+        doc.versions[0] = Version {
+            id: VersionId(0),
+            label: label.into(),
+            data,
+        };
         Ok(doc)
     }
 }
@@ -314,7 +331,9 @@ impl<'d> Transaction<'d> {
             }
             None => TypedStore::<C>::empty().map.insert(e, c),
         };
-        self.data.stores.insert_mut(C::NAME, Arc::new(TypedStore { map }));
+        self.data
+            .stores
+            .insert_mut(C::NAME, Arc::new(TypedStore { map }));
     }
 
     pub fn remove<C: Component>(&mut self, e: EntityId) {
@@ -353,7 +372,11 @@ impl<'d> Transaction<'d> {
         let id = VersionId(doc.next_version);
         doc.next_version += 1;
         let label = label.into();
-        doc.versions.push(Version { id, label: label.clone(), data });
+        doc.versions.push(Version {
+            id,
+            label: label.clone(),
+            data,
+        });
         doc.cursor = doc.versions.len() - 1;
 
         if doc.versions.len() > doc.history_limit {
@@ -439,7 +462,11 @@ impl Snapshot {
                 break;
             }
             guarda += 1;
-            cadena.push(self.get::<Transform>(id).copied().unwrap_or(Transform::IDENTITY));
+            cadena.push(
+                self.get::<Transform>(id)
+                    .copied()
+                    .unwrap_or(Transform::IDENTITY),
+            );
             actual = self.get::<Parent>(id).map(|p| p.0);
             if actual == Some(e) {
                 break; // ciclo

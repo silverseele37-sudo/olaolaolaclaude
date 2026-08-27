@@ -104,7 +104,10 @@ pub enum AssetError {
 
 impl AssetError {
     pub(crate) fn io(p: impl Into<PathBuf>, e: std::io::Error) -> Self {
-        AssetError::Io { path: p.into(), source: e }
+        AssetError::Io {
+            path: p.into(),
+            source: e,
+        }
     }
 }
 
@@ -269,7 +272,12 @@ pub struct AssetMeta {
 
 impl AssetMeta {
     pub fn new(name: impl Into<String>, kind: AssetType) -> Self {
-        AssetMeta { name: name.into(), kind, tags: BTreeSet::new(), notes: String::new() }
+        AssetMeta {
+            name: name.into(),
+            kind,
+            tags: BTreeSet::new(),
+            notes: String::new(),
+        }
     }
 
     pub fn with_tags<S: Into<String>>(mut self, tags: impl IntoIterator<Item = S>) -> Self {
@@ -286,7 +294,12 @@ impl AssetMeta {
     /// para que diario e índice guarden exactamente lo mismo y comparar
     /// metadatos no dé falsos cambios.
     fn canonica(mut self) -> Self {
-        self.tags = self.tags.iter().map(|t| normalizar(t)).filter(|t| !t.is_empty()).collect();
+        self.tags = self
+            .tags
+            .iter()
+            .map(|t| normalizar(t))
+            .filter(|t| !t.is_empty())
+            .collect();
         self
     }
 }
@@ -451,7 +464,10 @@ fn borrar_indice(p: &Path) -> Result<()> {
 /// `./textura.png` y `/casa/proyecto/textura.png` sean el mismo activo; cuando
 /// no existe (contenido generado en memoria) se toma la ruta tal cual.
 fn clave_de_origen(p: &Path) -> String {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()).to_string_lossy().into_owned()
+    std::fs::canonicalize(p)
+        .unwrap_or_else(|_| p.to_path_buf())
+        .to_string_lossy()
+        .into_owned()
 }
 
 impl AssetStore {
@@ -575,20 +591,23 @@ impl AssetStore {
     }
 
     fn guardar_offset(&self, off: u64) -> Result<()> {
-        self.conn.prepare_cached(
-            "INSERT INTO meta_indice(clave, valor) VALUES(?1, ?2)
+        self.conn
+            .prepare_cached(
+                "INSERT INTO meta_indice(clave, valor) VALUES(?1, ?2)
              ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-        )?
-        .execute(params![CLAVE_OFFSET, off.to_string()])?;
+            )?
+            .execute(params![CLAVE_OFFSET, off.to_string()])?;
         Ok(())
     }
 
     fn offset_aplicado(&self) -> Result<u64> {
         let v: Option<String> = self
             .conn
-            .query_row("SELECT valor FROM meta_indice WHERE clave = ?1", [CLAVE_OFFSET], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT valor FROM meta_indice WHERE clave = ?1",
+                [CLAVE_OFFSET],
+                |r| r.get(0),
+            )
             .optional()?;
         match v {
             None => Ok(0),
@@ -645,10 +664,18 @@ impl AssetStore {
             // pidió "este archivo tiene ahora este contenido", y ese contenido
             // ya lo teníamos. Es un revert, no una versión nueva.
             if self.version_vigente(id)? != v {
-                self.registrar(Registro::Vigente { id: id.to_string(), version: v, ts })?;
+                self.registrar(Registro::Vigente {
+                    id: id.to_string(),
+                    version: v,
+                    ts,
+                })?;
             }
             if self.meta_de(id)? != meta {
-                self.registrar(Registro::Meta { id: id.to_string(), meta, ts })?;
+                self.registrar(Registro::Meta {
+                    id: id.to_string(),
+                    meta,
+                    ts,
+                })?;
             }
             return Ok(id);
         }
@@ -669,7 +696,11 @@ impl AssetStore {
     pub fn set_meta(&mut self, id: AssetId, meta: AssetMeta) -> Result<()> {
         self.exigir(id)?;
         let ts = self.clock.now_ms();
-        self.registrar(Registro::Meta { id: id.to_string(), meta: meta.canonica(), ts })
+        self.registrar(Registro::Meta {
+            id: id.to_string(),
+            meta: meta.canonica(),
+            ts,
+        })
     }
 
     pub fn tag(&mut self, id: AssetId, etiqueta: &str) -> Result<()> {
@@ -679,7 +710,12 @@ impl AssetStore {
             return Ok(());
         }
         let ts = self.clock.now_ms();
-        self.registrar(Registro::Etiqueta { id: id.to_string(), etiqueta: e, pon: true, ts })
+        self.registrar(Registro::Etiqueta {
+            id: id.to_string(),
+            etiqueta: e,
+            pon: true,
+            ts,
+        })
     }
 
     pub fn untag(&mut self, id: AssetId, etiqueta: &str) -> Result<()> {
@@ -698,7 +734,11 @@ impl AssetStore {
     pub fn set_thumbnail(&mut self, id: AssetId, h: Option<BlobHash>) -> Result<()> {
         self.exigir(id)?;
         let ts = self.clock.now_ms();
-        self.registrar(Registro::Miniatura { id: id.to_string(), hash: h.map(|h| h.to_hex()), ts })
+        self.registrar(Registro::Miniatura {
+            id: id.to_string(),
+            hash: h.map(|h| h.to_hex()),
+            ts,
+        })
     }
 
     /// Da de baja el activo. Su contenido queda huérfano hasta el próximo
@@ -706,7 +746,10 @@ impl AssetStore {
     pub fn remove(&mut self, id: AssetId) -> Result<()> {
         self.exigir(id)?;
         let ts = self.clock.now_ms();
-        self.registrar(Registro::Borrado { id: id.to_string(), ts })
+        self.registrar(Registro::Borrado {
+            id: id.to_string(),
+            ts,
+        })
     }
 
     /// Mueve la versión vigente. **No borra historia**: las versiones
@@ -717,7 +760,11 @@ impl AssetStore {
             return Err(AssetError::VersionDesconocida { id, version: to });
         }
         let ts = self.clock.now_ms();
-        self.registrar(Registro::Vigente { id: id.to_string(), version: to.0, ts })
+        self.registrar(Registro::Vigente {
+            id: id.to_string(),
+            version: to.0,
+            ts,
+        })
     }
 
     /// Declara que `de` depende de `a`. Rechaza el ciclo antes de crearlo.
@@ -792,7 +839,12 @@ impl AssetStore {
         };
         Ok(Some(Asset {
             id,
-            meta: AssetMeta { name: nombre, kind, tags: self.etiquetas(id)?, notes: notas },
+            meta: AssetMeta {
+                name: nombre,
+                kind,
+                tags: self.etiquetas(id)?,
+                notes: notas,
+            },
             size: tam as u64,
             imported: imp,
             modified: modif,
@@ -811,7 +863,12 @@ impl AssetStore {
             "SELECT version, hash, tam, creada FROM versiones WHERE id = ?1 ORDER BY version",
         )?;
         let filas = st.query_map([id.to_string()], |r| {
-            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?))
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
         })?;
         let mut out = Vec::new();
         for f in filas {
@@ -830,9 +887,11 @@ impl AssetStore {
         self.exigir(id)?;
         let v: Option<String> = self
             .conn
-            .query_row("SELECT miniatura FROM activos WHERE id = ?1", [id.to_string()], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT miniatura FROM activos WHERE id = ?1",
+                [id.to_string()],
+                |r| r.get(0),
+            )
             .optional()?
             .flatten();
         match v {
@@ -877,7 +936,9 @@ impl AssetStore {
 
     /// Contenido de la versión vigente.
     pub fn content(&self, id: AssetId) -> Result<Option<Arc<[u8]>>> {
-        let Some(a) = self.get(id)? else { return Ok(None) };
+        let Some(a) = self.get(id)? else {
+            return Ok(None);
+        };
         Ok(self.blobs.get(a.hash)?)
     }
 
@@ -891,13 +952,17 @@ impl AssetStore {
                 |r| r.get(0),
             )
             .optional()?;
-        let Some(h) = h else { return Err(AssetError::VersionDesconocida { id, version: v }) };
+        let Some(h) = h else {
+            return Err(AssetError::VersionDesconocida { id, version: v });
+        };
         Ok(self.blobs.get(BlobHash::from_hex(&h)?)?)
     }
 
     /// Cuántos activos vivos hay.
     pub fn len(&self) -> Result<u64> {
-        let n: i64 = self.conn.query_row("SELECT COUNT(*) FROM activos", [], |r| r.get(0))?;
+        let n: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM activos", [], |r| r.get(0))?;
         Ok(n as u64)
     }
 
@@ -935,7 +1000,9 @@ impl AssetStore {
         // sistema por versión: con cien mil versiones la diferencia es de
         // segundos a milisegundos.
         let presentes: HashSet<BlobHash> = self.blobs.list()?.into_iter().collect();
-        let mut st = self.conn.prepare("SELECT DISTINCT hash FROM versiones ORDER BY hash")?;
+        let mut st = self
+            .conn
+            .prepare("SELECT DISTINCT hash FROM versiones ORDER BY hash")?;
         let filas = st.query_map([], |r| r.get::<_, String>(0))?;
         let mut missing_blobs = Vec::new();
         for f in filas {
@@ -1033,7 +1100,11 @@ impl AssetStore {
     fn exigir(&self, id: AssetId) -> Result<()> {
         let hay: Option<i64> = self
             .conn
-            .query_row("SELECT 1 FROM activos WHERE id = ?1", [id.to_string()], |r| r.get(0))
+            .query_row(
+                "SELECT 1 FROM activos WHERE id = ?1",
+                [id.to_string()],
+                |r| r.get(0),
+            )
             .optional()?;
         hay.map(|_| ()).ok_or(AssetError::Desconocido(id))
     }
@@ -1069,7 +1140,9 @@ impl AssetStore {
     fn id_por_origen(&self, origen: &str) -> Result<Option<AssetId>> {
         let v: Option<String> = self
             .conn
-            .query_row("SELECT id FROM activos WHERE origen = ?1", [origen], |r| r.get(0))
+            .query_row("SELECT id FROM activos WHERE origen = ?1", [origen], |r| {
+                r.get(0)
+            })
             .optional()?;
         v.map(|s| AssetId::parse(&s)).transpose()
     }
@@ -1129,7 +1202,9 @@ impl AssetStore {
     }
 
     fn meta_de(&self, id: AssetId) -> Result<AssetMeta> {
-        self.get(id)?.map(|a| a.meta).ok_or(AssetError::Desconocido(id))
+        self.get(id)?
+            .map(|a| a.meta)
+            .ok_or(AssetError::Desconocido(id))
     }
 
     /// Mete una arista **sin** comprobar ciclos. Solo para probar que las
@@ -1159,7 +1234,15 @@ impl AssetStore {
 /// historia normal, no corrupción.
 fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
     match r {
-        Registro::Importado { id, version, hash, tam, origen, meta, ts } => {
+        Registro::Importado {
+            id,
+            version,
+            hash,
+            tam,
+            origen,
+            meta,
+            ts,
+        } => {
             // `importado` solo se fija en el alta: en las versiones siguientes
             // el `ON CONFLICT` no lo toca, y por eso conserva la fecha original.
             c.prepare_cached(
@@ -1239,7 +1322,12 @@ fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
             }
         }
 
-        Registro::Etiqueta { id, etiqueta, pon, ts } => {
+        Registro::Etiqueta {
+            id,
+            etiqueta,
+            pon,
+            ts,
+        } => {
             if *pon {
                 c.prepare_cached(
                     "INSERT OR IGNORE INTO etiquetas(id, etiqueta)
@@ -1277,18 +1365,24 @@ fn aplicar(c: &Connection, r: &Registro) -> Result<()> {
         }
 
         Registro::Borrado { id, .. } => {
-            c.prepare_cached("DELETE FROM activos WHERE id = ?1")?.execute([id])?;
-            c.prepare_cached("DELETE FROM versiones WHERE id = ?1")?.execute([id])?;
-            c.prepare_cached("DELETE FROM etiquetas WHERE id = ?1")?.execute([id])?;
-            c.prepare_cached("DELETE FROM dependencias WHERE de = ?1 OR a = ?1")?.execute([id])?;
+            c.prepare_cached("DELETE FROM activos WHERE id = ?1")?
+                .execute([id])?;
+            c.prepare_cached("DELETE FROM versiones WHERE id = ?1")?
+                .execute([id])?;
+            c.prepare_cached("DELETE FROM etiquetas WHERE id = ?1")?
+                .execute([id])?;
+            c.prepare_cached("DELETE FROM dependencias WHERE de = ?1 OR a = ?1")?
+                .execute([id])?;
         }
     }
     Ok(())
 }
 
 fn poner_etiquetas(c: &Connection, id: &str, tags: &BTreeSet<String>) -> Result<()> {
-    c.prepare_cached("DELETE FROM etiquetas WHERE id = ?1")?.execute([id])?;
-    let mut ins = c.prepare_cached("INSERT OR IGNORE INTO etiquetas(id, etiqueta) VALUES(?1, ?2)")?;
+    c.prepare_cached("DELETE FROM etiquetas WHERE id = ?1")?
+        .execute([id])?;
+    let mut ins =
+        c.prepare_cached("INSERT OR IGNORE INTO etiquetas(id, etiqueta) VALUES(?1, ?2)")?;
     for t in tags {
         ins.execute(params![id, t])?;
     }
@@ -1310,15 +1404,22 @@ mod tests {
     }
 
     fn meter(s: &mut AssetStore, n: &str) -> AssetId {
-        s.import_bytes(format!("/virtual/{n}"), n.as_bytes(), AssetMeta::new(n, AssetType::Modelo))
-            .expect("importar")
+        s.import_bytes(
+            format!("/virtual/{n}"),
+            n.as_bytes(),
+            AssetMeta::new(n, AssetType::Modelo),
+        )
+        .expect("importar")
     }
 
     /// Respuesta conocida del normalizador. Sin este test, "no distingue
     /// acentos" sería una afirmación de la documentación y nada más.
     #[test]
     fn normalizar_quita_acentos_y_mayusculas() {
-        assert_eq!(normalizar("Válvula Ñ Çedilla ÀÊÎÕÜ"), "valvula n cedilla aeiou");
+        assert_eq!(
+            normalizar("Válvula Ñ Çedilla ÀÊÎÕÜ"),
+            "valvula n cedilla aeiou"
+        );
         assert_eq!(normalizar("ya-normal_123"), "ya-normal_123");
     }
 
@@ -1332,7 +1433,10 @@ mod tests {
         assert!(!sql.contains("BETWEEN"), "{sql}");
         assert!(par.is_empty());
 
-        let q = AssetQuery::new().with_text("x").with_all_tags(["a", "b"]).size_between(1, 2);
+        let q = AssetQuery::new()
+            .with_text("x")
+            .with_all_tags(["a", "b"])
+            .size_between(1, 2);
         let (sql, par) = consulta::construir(&q);
         assert_eq!(sql.matches("LIKE").count(), 2, "nombre y notas: {sql}");
         assert_eq!(sql.matches("BETWEEN").count(), 1, "{sql}");
@@ -1356,14 +1460,23 @@ mod tests {
         s.add_dependency(b, c).expect("b->c");
 
         // Control negativo del detector: cerrar el triángulo es un ciclo.
-        assert!(matches!(s.add_dependency(c, a), Err(AssetError::Ciclo { .. })));
-        assert!(matches!(s.add_dependency(a, a), Err(AssetError::Ciclo { .. })));
+        assert!(matches!(
+            s.add_dependency(c, a),
+            Err(AssetError::Ciclo { .. })
+        ));
+        assert!(matches!(
+            s.add_dependency(a, a),
+            Err(AssetError::Ciclo { .. })
+        ));
         // Control positivo: una arista que no cierra nada sí entra.
         s.add_dependency(a, c).expect("a->c no es ciclo");
 
         // Y ahora el ciclo por la fuerza, saltándose la comprobación.
         s.arista_cruda(c, a).expect("arista cruda");
-        assert!(s.alcanzable(a, a).expect("alcanzable"), "el ciclo esta ahi de verdad");
+        assert!(
+            s.alcanzable(a, a).expect("alcanzable"),
+            "el ciclo esta ahi de verdad"
+        );
         // Si esto termina, la travesía sobrevive al ciclo. El recuento exacto
         // además fija que el nodo de partida no se cuenta a sí mismo.
         assert_eq!(s.transitive_dependents(c).expect("cierre"), {
@@ -1380,14 +1493,21 @@ mod tests {
     fn un_esquema_futuro_no_se_abre_a_ver_si_va() {
         let (d, s) = almacen();
         drop(s);
-        assert!(AssetStore::open(d.path()).is_ok(), "la version propia tiene que abrir");
+        assert!(
+            AssetStore::open(d.path()).is_ok(),
+            "la version propia tiene que abrir"
+        );
 
         let c = Connection::open(d.path().join(NOMBRE_INDICE)).expect("abrir sqlite");
-        c.pragma_update(None, "user_version", 99_i64).expect("marcar futuro");
+        c.pragma_update(None, "user_version", 99_i64)
+            .expect("marcar futuro");
         drop(c);
 
         match AssetStore::open(d.path()) {
-            Err(AssetError::EsquemaFuturo { encontrada, soportada }) => {
+            Err(AssetError::EsquemaFuturo {
+                encontrada,
+                soportada,
+            }) => {
                 assert_eq!(encontrada, 99);
                 assert_eq!(soportada, ESQUEMA_VERSION);
             }

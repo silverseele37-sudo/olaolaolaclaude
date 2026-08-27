@@ -60,7 +60,11 @@ impl GltfOptions {
     /// Sin conversiones: los números tal cual están en FORGE. Incumple la
     /// especificación a propósito; úsalo solo cuando el receptor lo espere.
     pub fn crudo() -> Self {
-        GltfOptions { y_up: false, to_meters: false, ..Default::default() }
+        GltfOptions {
+            y_up: false,
+            to_meters: false,
+            ..Default::default()
+        }
     }
 
     fn convertir(&self, v: DVec3) -> DVec3 {
@@ -138,7 +142,10 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
             max[k] = max[k].max(c);
         }
     }
-    let (off, len) = bin.push_f32(pos.iter().flat_map(|p| [p.x as f32, p.y as f32, p.z as f32]));
+    let (off, len) = bin.push_f32(
+        pos.iter()
+            .flat_map(|p| [p.x as f32, p.y as f32, p.z as f32]),
+    );
     views.push(json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ARRAY_BUFFER}));
     accessors.push(json!({
         "bufferView": views.len()-1, "componentType": COMPONENT_FLOAT,
@@ -149,9 +156,15 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
 
     // --- NORMAL ---
     if !soup.normals.is_empty() {
-        let ns: Vec<DVec3> = soup.normals.iter().map(|n| opts.convertir_normal(*n)).collect();
+        let ns: Vec<DVec3> = soup
+            .normals
+            .iter()
+            .map(|n| opts.convertir_normal(*n))
+            .collect();
         let (off, len) = bin.push_f32(ns.iter().flat_map(|n| [n.x as f32, n.y as f32, n.z as f32]));
-        views.push(json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ARRAY_BUFFER}));
+        views.push(
+            json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ARRAY_BUFFER}),
+        );
         accessors.push(json!({
             "bufferView": views.len()-1, "componentType": COMPONENT_FLOAT,
             "count": ns.len(), "type": "VEC3"
@@ -162,7 +175,9 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
     // --- TEXCOORD_0 ---
     if !soup.uvs.is_empty() {
         let (off, len) = bin.push_f32(soup.uvs.iter().flat_map(|t| [t.x as f32, t.y as f32]));
-        views.push(json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ARRAY_BUFFER}));
+        views.push(
+            json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ARRAY_BUFFER}),
+        );
         accessors.push(json!({
             "bufferView": views.len()-1, "componentType": COMPONENT_FLOAT,
             "count": soup.uvs.len(), "type": "VEC2"
@@ -172,14 +187,20 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
 
     // --- índices ---
     let (off, len) = bin.push_u32(soup.indices.iter().copied());
-    views.push(json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ELEMENT_ARRAY_BUFFER}));
+    views.push(
+        json!({"buffer":0,"byteOffset":off,"byteLength":len,"target":TARGET_ELEMENT_ARRAY_BUFFER}),
+    );
     accessors.push(json!({
         "bufferView": views.len()-1, "componentType": COMPONENT_UINT,
         "count": soup.indices.len(), "type": "SCALAR"
     }));
     let idx_accessor = accessors.len() - 1;
 
-    let nombre = if soup.name.is_empty() { "malla" } else { &soup.name };
+    let nombre = if soup.name.is_empty() {
+        "malla"
+    } else {
+        &soup.name
+    };
     let doc = json!({
         "asset": { "version": "2.0", "generator": format!("FORGE {}", env!("CARGO_PKG_VERSION")) },
         "scene": 0,
@@ -201,8 +222,7 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
         "buffers": [ { "byteLength": bin.bytes.len() } ]
     });
 
-    let mut json_bytes =
-        serde_json::to_vec(&doc).map_err(|e| InteropError::Json(e.to_string()))?;
+    let mut json_bytes = serde_json::to_vec(&doc).map_err(|e| InteropError::Json(e.to_string()))?;
     // El chunk JSON se rellena con **espacios**, el binario con ceros. Lo dice
     // la especificación y algunos lectores estrictos lo comprueban.
     while json_bytes.len() % 4 != 0 {
@@ -213,7 +233,14 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
         bin_bytes.push(0);
     }
 
-    let total = 12 + 8 + json_bytes.len() + if bin_bytes.is_empty() { 0 } else { 8 + bin_bytes.len() };
+    let total = 12
+        + 8
+        + json_bytes.len()
+        + if bin_bytes.is_empty() {
+            0
+        } else {
+            8 + bin_bytes.len()
+        };
     let mut out = Vec::with_capacity(total);
     out.extend_from_slice(&GLB_MAGIC.to_le_bytes());
     out.extend_from_slice(&GLB_VERSION.to_le_bytes());
@@ -233,25 +260,40 @@ pub fn to_glb(soup: &TriangleSoup, opts: GltfOptions) -> Result<Vec<u8>> {
 pub fn write_glb(path: impl AsRef<Path>, soup: &TriangleSoup, opts: GltfOptions) -> Result<()> {
     let path = path.as_ref();
     let bytes = to_glb(soup, opts)?;
-    std::fs::write(path, bytes).map_err(|e| InteropError::Io { path: path.into(), source: e })
+    std::fs::write(path, bytes).map_err(|e| InteropError::Io {
+        path: path.into(),
+        source: e,
+    })
 }
 
 /// Extrae el JSON de un `.glb`. Para tests y para inspeccionar sin herramientas.
 pub fn glb_json(glb: &[u8]) -> Result<Value> {
     if glb.len() < 20 {
-        return Err(InteropError::Malformed { line: 0, detail: "glb demasiado corto".into() });
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "glb demasiado corto".into(),
+        });
     }
     let leer = |o: usize| u32::from_le_bytes([glb[o], glb[o + 1], glb[o + 2], glb[o + 3]]);
     if leer(0) != GLB_MAGIC {
-        return Err(InteropError::Malformed { line: 0, detail: "magic no es glTF".into() });
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "magic no es glTF".into(),
+        });
     }
     let json_len = leer(12) as usize;
     if leer(16) != CHUNK_JSON {
-        return Err(InteropError::Malformed { line: 0, detail: "el primer chunk no es JSON".into() });
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "el primer chunk no es JSON".into(),
+        });
     }
     let fin = 20 + json_len;
     if fin > glb.len() {
-        return Err(InteropError::Malformed { line: 0, detail: "chunk JSON truncado".into() });
+        return Err(InteropError::Malformed {
+            line: 0,
+            detail: "chunk JSON truncado".into(),
+        });
     }
     serde_json::from_slice(&glb[20..fin]).map_err(|e| InteropError::Json(e.to_string()))
 }

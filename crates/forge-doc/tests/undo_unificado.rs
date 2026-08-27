@@ -43,13 +43,33 @@ impl Rng {
 /// geometría con blob (kernel/malla), visibilidad (render).
 #[derive(Clone, Debug)]
 enum Edicion {
-    Crear { idx: u128, nombre: String },
-    Mover { idx: u128, d: f64 },
-    Ocultar { idx: u128, v: bool },
-    Emparentar { hijo: u128, padre: u128 },
-    PonerGeometria { idx: u128, exacta: bool, semilla: u64 },
-    QuitarNombre { idx: u128 },
-    Borrar { idx: u128 },
+    Crear {
+        idx: u128,
+        nombre: String,
+    },
+    Mover {
+        idx: u128,
+        d: f64,
+    },
+    Ocultar {
+        idx: u128,
+        v: bool,
+    },
+    Emparentar {
+        hijo: u128,
+        padre: u128,
+    },
+    PonerGeometria {
+        idx: u128,
+        exacta: bool,
+        semilla: u64,
+    },
+    QuitarNombre {
+        idx: u128,
+    },
+    Borrar {
+        idx: u128,
+    },
 }
 
 fn generar(rng: &mut Rng, vivos: &mut Vec<u128>, siguiente: &mut u128) -> Edicion {
@@ -60,12 +80,21 @@ fn generar(rng: &mut Rng, vivos: &mut Vec<u128>, siguiente: &mut u128) -> Edicio
         let idx = *siguiente;
         *siguiente += 1;
         vivos.push(idx);
-        return Edicion::Crear { idx, nombre: format!("pieza-{idx}") };
+        return Edicion::Crear {
+            idx,
+            nombre: format!("pieza-{idx}"),
+        };
     }
     let pick = |r: &mut Rng, v: &Vec<u128>| v[r.below(v.len() as u64)];
     match rng.below(6) {
-        0 => Edicion::Mover { idx: pick(rng, vivos), d: (rng.below(2000) as f64) / 10.0 - 100.0 },
-        1 => Edicion::Ocultar { idx: pick(rng, vivos), v: rng.below(2) == 0 },
+        0 => Edicion::Mover {
+            idx: pick(rng, vivos),
+            d: (rng.below(2000) as f64) / 10.0 - 100.0,
+        },
+        1 => Edicion::Ocultar {
+            idx: pick(rng, vivos),
+            v: rng.below(2) == 0,
+        },
         2 => {
             let hijo = pick(rng, vivos);
             let padre = pick(rng, vivos);
@@ -76,7 +105,9 @@ fn generar(rng: &mut Rng, vivos: &mut Vec<u128>, siguiente: &mut u128) -> Edicio
             exacta: rng.below(2) == 0,
             semilla: rng.next(),
         },
-        4 => Edicion::QuitarNombre { idx: pick(rng, vivos) },
+        4 => Edicion::QuitarNombre {
+            idx: pick(rng, vivos),
+        },
         _ => {
             let i = rng.below(vivos.len() as u64);
             let idx = vivos.remove(i);
@@ -95,7 +126,10 @@ fn aplicar(doc: &mut Document, ed: &Edicion) {
             tx.set(id, Visible(true));
         }),
         Edicion::Mover { idx, d } => doc.edit("mover", |tx| {
-            let mut t = tx.get::<Transform>(e(*idx)).copied().unwrap_or(Transform::IDENTITY);
+            let mut t = tx
+                .get::<Transform>(e(*idx))
+                .copied()
+                .unwrap_or(Transform::IDENTITY);
             t.translation += DVec3::new(*d, *d * 0.5, 0.0);
             t.rotation = DQuat::from_rotation_z(*d * 0.01);
             tx.set(e(*idx), t);
@@ -106,9 +140,17 @@ fn aplicar(doc: &mut Document, ed: &Edicion) {
         Edicion::Emparentar { hijo, padre } => doc.edit("emparentar", |tx| {
             tx.set(e(*hijo), Parent(e(*padre)));
         }),
-        Edicion::PonerGeometria { idx, exacta, semilla } => doc.edit("geometria", |tx| {
+        Edicion::PonerGeometria {
+            idx,
+            exacta,
+            semilla,
+        } => doc.edit("geometria", |tx| {
             let h = BlobHash::of(&semilla.to_le_bytes());
-            let p = if *exacta { GeometryPayload::Brep(h) } else { GeometryPayload::Mesh(h) };
+            let p = if *exacta {
+                GeometryPayload::Brep(h)
+            } else {
+                GeometryPayload::Mesh(h)
+            };
             tx.set(e(*idx), Geometry(p));
         }),
         Edicion::QuitarNombre { idx } => doc.edit("quitar nombre", |tx| {
@@ -124,7 +166,9 @@ fn guion(seed: u64, n: usize) -> Vec<Edicion> {
     let mut rng = Rng::new(seed);
     let mut vivos = Vec::new();
     let mut siguiente = 1u128;
-    (0..n).map(|_| generar(&mut rng, &mut vivos, &mut siguiente)).collect()
+    (0..n)
+        .map(|_| generar(&mut rng, &mut vivos, &mut siguiente))
+        .collect()
 }
 
 #[test]
@@ -180,13 +224,19 @@ fn undo_redo_no_diverge_de_la_reejecucion_desde_cero() {
                 cursor -= 1;
                 undos += 1;
             } else {
-                assert_eq!(cursor, 0, "undo devolvio None sin estar en la version inicial");
+                assert_eq!(
+                    cursor, 0,
+                    "undo devolvio None sin estar en la version inicial"
+                );
             }
         } else if doc.redo().is_some() {
             cursor += 1;
             redos += 1;
         } else {
-            assert_eq!(cursor, EDICIONES, "redo devolvio None sin estar en la ultima version");
+            assert_eq!(
+                cursor, EDICIONES,
+                "redo devolvio None sin estar en la ultima version"
+            );
         }
 
         assert_eq!(
@@ -196,7 +246,10 @@ fn undo_redo_no_diverge_de_la_reejecucion_desde_cero() {
         );
     }
 
-    assert!(undos > 1000 && redos > 1000, "el paseo no ejercito las dos direcciones");
+    assert!(
+        undos > 1000 && redos > 1000,
+        "el paseo no ejercito las dos direcciones"
+    );
 }
 
 #[test]
@@ -215,7 +268,10 @@ fn editar_despues_de_deshacer_descarta_el_rehacer() {
     assert!(doc.can_redo());
 
     doc.edit("c", |tx| tx.set(a, Name("c".into())));
-    assert!(!doc.can_redo(), "una edicion tras deshacer abre rama y descarta el rehacer");
+    assert!(
+        !doc.can_redo(),
+        "una edicion tras deshacer abre rama y descarta el rehacer"
+    );
     assert_eq!(doc.snapshot().get::<Name>(a).unwrap().0, "c");
 }
 
@@ -228,10 +284,10 @@ fn una_operacion_mixta_es_un_solo_undo() {
 
     let e = doc.edit("importar pieza", |tx| {
         let e = tx.spawn();
-        tx.set(e, Name("soporte".into()));                                    // escena
-        tx.set(e, Transform::from_translation(DVec3::new(1.0, 2.0, 3.0)));    // escena
-        tx.set(e, Geometry(GeometryPayload::Brep(BlobHash::of(b"solido"))));  // kernel
-        tx.set(e, Visible(true));                                             // render
+        tx.set(e, Name("soporte".into())); // escena
+        tx.set(e, Transform::from_translation(DVec3::new(1.0, 2.0, 3.0))); // escena
+        tx.set(e, Geometry(GeometryPayload::Brep(BlobHash::of(b"solido")))); // kernel
+        tx.set(e, Visible(true)); // render
         e
     });
 
@@ -239,7 +295,11 @@ fn una_operacion_mixta_es_un_solo_undo() {
     assert!(s.get::<Name>(e).is_some() && s.get::<Geometry>(e).is_some());
 
     doc.undo();
-    assert_eq!(doc.snapshot().fingerprint(), antes, "un solo Ctrl+Z revierte los cuatro cambios");
+    assert_eq!(
+        doc.snapshot().fingerprint(),
+        antes,
+        "un solo Ctrl+Z revierte los cuatro cambios"
+    );
     assert!(!doc.can_undo());
 }
 
@@ -275,7 +335,9 @@ fn la_poda_del_historial_conserva_el_estado_actual() {
         e
     });
     for i in 0..50 {
-        doc.edit(format!("edicion {i}"), |tx| tx.set(e, Name(format!("n{i}"))));
+        doc.edit(format!("edicion {i}"), |tx| {
+            tx.set(e, Name(format!("n{i}")))
+        });
     }
     assert_eq!(doc.snapshot().get::<Name>(e).unwrap().0, "n49");
     // se puede deshacer hasta el limite, y ni un paso mas
@@ -285,5 +347,8 @@ fn la_poda_del_historial_conserva_el_estado_actual() {
         assert!(pasos <= 8, "la poda no acoto el historial");
     }
     assert_eq!(pasos, 7, "con limite 8 quedan 7 pasos de deshacer");
-    assert!(doc.snapshot().get::<Name>(e).is_some(), "la poda no debe perder el estado");
+    assert!(
+        doc.snapshot().get::<Name>(e).is_some(),
+        "la poda no debe perder el estado"
+    );
 }

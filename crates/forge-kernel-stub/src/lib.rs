@@ -79,7 +79,10 @@ impl Default for StubKernel {
 
 impl StubKernel {
     pub fn new() -> Self {
-        StubKernel { shapes: RwLock::new(HashMap::new()), siguiente: AtomicU64::new(1) }
+        StubKernel {
+            shapes: RwLock::new(HashMap::new()),
+            siguiente: AtomicU64::new(1),
+        }
     }
 
     /// Formas vivas. Para comprobar en tests que `release` libera de verdad.
@@ -105,8 +108,13 @@ impl StubKernel {
 
     fn poliedro(&self, id: ShapeId) -> KernelResult<(Poly, FeatureId)> {
         match self.leer(id)? {
-            Shape { body: Body::Poly(p), owner } => Ok((p, owner)),
-            Shape { body: Body::Cyl(_), .. } => Err(KernelError::Unsupported(
+            Shape {
+                body: Body::Poly(p),
+                owner,
+            } => Ok((p, owner)),
+            Shape {
+                body: Body::Cyl(_), ..
+            } => Err(KernelError::Unsupported(
                 "la operacion no acepta cilindros analiticos en este kernel",
             )),
         }
@@ -147,7 +155,10 @@ pub fn segmentos_para(radio: f64, p: &TessellationParams) -> u32 {
 
 impl StubKernel {
     fn teselar_poly(&self, p: &Poly, owner: FeatureId) -> KernelResult<Tessellation> {
-        let mut t = Tessellation { bbox: p.bbox(), ..Default::default() };
+        let mut t = Tessellation {
+            bbox: p.bbox(),
+            ..Default::default()
+        };
         for cara in &p.caras {
             let n = p.normal_de(cara);
             // Vértices por cara y no compartidos: dos caras que comparten una
@@ -183,27 +194,36 @@ impl StubKernel {
         let (u, v) = forge_math::orthonormal_basis(c.eje);
         let punto = |k: u32, arriba: bool| {
             let a = std::f64::consts::TAU * k as f64 / n as f64;
-            c.base + (u * a.cos() + v * a.sin()) * c.radio + c.eje * if arriba { c.altura } else { 0.0 }
+            c.base
+                + (u * a.cos() + v * a.sin()) * c.radio
+                + c.eje * if arriba { c.altura } else { 0.0 }
         };
 
         let mut t = Tessellation::default();
         // --- lateral ---
         for k in 0..n {
             let k1 = (k + 1) % n;
-            let (b0, b1, t0, t1) = (punto(k, false), punto(k1, false), punto(k, true), punto(k1, true));
+            let (b0, b1, t0, t1) = (
+                punto(k, false),
+                punto(k1, false),
+                punto(k, true),
+                punto(k1, true),
+            );
             let nb = ((b0 - c.base) - c.eje * (b0 - c.base).dot(c.eje)).normalize();
             let nb1 = ((b1 - c.base) - c.eje * (b1 - c.base).dot(c.eje)).normalize();
             let base = t.positions.len() as u32;
             t.positions.extend_from_slice(&[b0, b1, t1, t0]);
             t.normals.extend_from_slice(&[nb, nb1, nb1, nb]);
-            t.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            t.indices
+                .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
             t.face_of_triangle.push(c.ids[0]);
             t.face_of_triangle.push(c.ids[0]);
         }
         // --- tapas ---
         for (arriba, id, normal) in [(false, c.ids[1], -c.eje), (true, c.ids[2], c.eje)] {
             let centro = t.positions.len() as u32;
-            t.positions.push(c.base + c.eje * if arriba { c.altura } else { 0.0 });
+            t.positions
+                .push(c.base + c.eje * if arriba { c.altura } else { 0.0 });
             t.normals.push(normal);
             for k in 0..n {
                 t.positions.push(punto(k, arriba));
@@ -224,7 +244,11 @@ impl StubKernel {
         for (arriba, id) in [(false, c.ids[1]), (true, c.ids[2])] {
             let pts: Vec<DVec3> = (0..=n).map(|k| punto(k % n, arriba)).collect();
             t.edges.push(EdgePolyline {
-                id: StableId { origin: id.origin, class: TopoClass::Edge, mark: poly::fnv(&[id.mark, 1]) },
+                id: StableId {
+                    origin: id.origin,
+                    class: TopoClass::Edge,
+                    mark: poly::fnv(&[id.mark, 1]),
+                },
                 kind: EdgeKind::Sharp,
                 points: pts,
             });
@@ -270,7 +294,9 @@ impl GeometryKernel for StubKernel {
             .sum::<f64>()
             * 0.5;
         if area.abs() < 1e-9 {
-            return Err(KernelError::Degenerate { hint: "el perfil tiene area nula".into() });
+            return Err(KernelError::Degenerate {
+                hint: "el perfil tiene area nula".into(),
+            });
         }
         if ops::se_autointersecta(pts) {
             return Err(KernelError::Degenerate {
@@ -282,11 +308,18 @@ impl GeometryKernel for StubKernel {
         if area < 0.0 {
             orden.reverse();
         }
-        let verts = orden.iter().map(|&i| DVec3::new(pts[i].x, pts[i].y, 0.0)).collect();
+        let verts = orden
+            .iter()
+            .map(|&i| DVec3::new(pts[i].x, pts[i].y, 0.0))
+            .collect();
         let poly = Poly {
             verts,
             caras: vec![Cara {
-                id: StableId { origin: owner, class: TopoClass::Face, mark: marca("profile", 0) },
+                id: StableId {
+                    origin: owner,
+                    class: TopoClass::Face,
+                    mark: marca("profile", 0),
+                },
                 prov: TopoProvenance::Primitive { index: 0 },
                 bucle: (0..pts.len() as u32).collect(),
             }],
@@ -295,19 +328,31 @@ impl GeometryKernel for StubKernel {
         self.guardar(Body::Poly(poly), owner)
     }
 
-    fn extrude(&self, profile: ShapeId, opts: ExtrudeOpts, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn extrude(
+        &self,
+        profile: ShapeId,
+        opts: ExtrudeOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         let (perfil, _) = self.poliedro(profile)?;
         if perfil.caras.len() != 1 {
             return Err(KernelError::InvalidInput {
-                detail: format!("se esperaba un perfil de una cara, tiene {}", perfil.caras.len()),
+                detail: format!(
+                    "se esperaba un perfil de una cara, tiene {}",
+                    perfil.caras.len()
+                ),
             });
         }
         if opts.distance_mm.abs() < forge_math::tol::CONFUSION_MM {
-            return Err(KernelError::Degenerate { hint: "distancia de extrusion nula".into() });
+            return Err(KernelError::Degenerate {
+                hint: "distancia de extrusion nula".into(),
+            });
         }
         let d = opts.direction.normalize_or_zero();
         if d == DVec3::ZERO {
-            return Err(KernelError::InvalidInput { detail: "direccion de extrusion nula".into() });
+            return Err(KernelError::InvalidInput {
+                detail: "direccion de extrusion nula".into(),
+            });
         }
         let (d0, d1) = if opts.symmetric {
             (-d * opts.distance_mm * 0.5, d * opts.distance_mm * 0.5)
@@ -327,7 +372,11 @@ impl GeometryKernel for StubKernel {
 
         let mut caras = Vec::with_capacity(m + 2);
         let cara = |mark: u64, prov: TopoProvenance, bucle: Vec<u32>| Cara {
-            id: StableId { origin: owner, class: TopoClass::Face, mark },
+            id: StableId {
+                origin: owner,
+                class: TopoClass::Face,
+                mark,
+            },
             prov,
             bucle,
         };
@@ -350,16 +399,27 @@ impl GeometryKernel for StubKernel {
             ));
         }
 
-        let mut p = Poly { verts, caras, solido: true };
+        let mut p = Poly {
+            verts,
+            caras,
+            solido: true,
+        };
         p.soldar();
         Self::orientar(&mut p);
         self.guardar(Body::Poly(p), owner)
     }
 
-    fn revolve(&self, profile: ShapeId, opts: RevolveOpts, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn revolve(
+        &self,
+        profile: ShapeId,
+        opts: RevolveOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         let (perfil, _) = self.poliedro(profile)?;
         if perfil.caras.len() != 1 {
-            return Err(KernelError::InvalidInput { detail: "se esperaba un perfil de una cara".into() });
+            return Err(KernelError::InvalidInput {
+                detail: "se esperaba un perfil de una cara".into(),
+            });
         }
         ops::revolve(&perfil, opts, owner).and_then(|p| self.guardar(Body::Poly(p), owner))
     }
@@ -386,11 +446,23 @@ impl GeometryKernel for StubKernel {
         }
         let eje = axis.normalize_or_zero();
         if eje == DVec3::ZERO {
-            return Err(KernelError::InvalidInput { detail: "eje nulo".into() });
+            return Err(KernelError::InvalidInput {
+                detail: "eje nulo".into(),
+            });
         }
-        let f = |i: u32| StableId { origin: owner, class: TopoClass::Face, mark: marca("cyl", i) };
+        let f = |i: u32| StableId {
+            origin: owner,
+            class: TopoClass::Face,
+            mark: marca("cyl", i),
+        };
         self.guardar(
-            Body::Cyl(Cilindro { base, eje, radio: radius_mm, altura: height_mm, ids: [f(0), f(1), f(2)] }),
+            Body::Cyl(Cilindro {
+                base,
+                eje,
+                radio: radius_mm,
+                altura: height_mm,
+                ids: [f(0), f(1), f(2)],
+            }),
             owner,
         )
     }
@@ -422,7 +494,13 @@ impl GeometryKernel for StubKernel {
         self.guardar(Body::Poly(p), owner)
     }
 
-    fn boolean(&self, op: BoolOp, a: ShapeId, b: ShapeId, owner: FeatureId) -> KernelResult<ShapeId> {
+    fn boolean(
+        &self,
+        op: BoolOp,
+        a: ShapeId,
+        b: ShapeId,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId> {
         let (pa, oa) = self.poliedro(a)?;
         let (pb, ob) = self.poliedro(b)?;
         let p = ops::booleano(op, &pa, oa, &pb, ob, owner)?;
@@ -490,12 +568,19 @@ impl GeometryKernel for StubKernel {
                 Ok(r)
             }
             Body::Cyl(c) => {
-                let mut r =
-                    TopologySummary { is_solid: true, is_closed: true, ..Default::default() };
+                let mut r = TopologySummary {
+                    is_solid: true,
+                    is_closed: true,
+                    ..Default::default()
+                };
                 let centro_lat = c.base + c.eje * (c.altura * 0.5);
                 for (i, id) in c.ids.iter().enumerate() {
                     let (centro, normal, medida) = match i {
-                        0 => (centro_lat, c.eje, std::f64::consts::TAU * c.radio * c.altura),
+                        0 => (
+                            centro_lat,
+                            c.eje,
+                            std::f64::consts::TAU * c.radio * c.altura,
+                        ),
                         1 => (c.base, -c.eje, std::f64::consts::PI * c.radio * c.radio),
                         _ => (
                             c.base + c.eje * c.altura,
@@ -541,10 +626,14 @@ impl GeometryKernel for StubKernel {
 
     fn is_valid(&self, s: ShapeId) -> KernelResult<ValidationReport> {
         let sh = self.leer(s)?;
-        let mut r = ValidationReport { valid: true, problems: Vec::new() };
+        let mut r = ValidationReport {
+            valid: true,
+            problems: Vec::new(),
+        };
         if let Body::Poly(p) = &sh.body {
             if p.solido && p.volumen_con_signo() <= 0.0 {
-                r.problems.push("volumen no positivo: caras al reves o solido abierto".into());
+                r.problems
+                    .push("volumen no positivo: caras al reves o solido abierto".into());
             }
             // Dos caras pueden compartir marca si son facetas de la misma
             // superficie logica -- una revolucion produce N cuadrilateros que
@@ -553,9 +642,10 @@ impl GeometryKernel for StubKernel {
             let mut por_marca: std::collections::HashMap<u64, &TopoProvenance> = HashMap::new();
             for c in &p.caras {
                 match por_marca.get(&c.id.mark) {
-                    Some(prev) if **prev != c.prov => r
-                        .problems
-                        .push(format!("marca {} compartida por procedencias distintas", c.id.mark)),
+                    Some(prev) if **prev != c.prov => r.problems.push(format!(
+                        "marca {} compartida por procedencias distintas",
+                        c.id.mark
+                    )),
                     _ => {
                         por_marca.insert(c.id.mark, &c.prov);
                     }
@@ -563,7 +653,8 @@ impl GeometryKernel for StubKernel {
             }
             for c in &p.caras {
                 if c.bucle.len() < 3 {
-                    r.problems.push(format!("cara con {} vertices", c.bucle.len()));
+                    r.problems
+                        .push(format!("cara con {} vertices", c.bucle.len()));
                 }
             }
             if let Err(e) = p.aristas(sh.owner) {

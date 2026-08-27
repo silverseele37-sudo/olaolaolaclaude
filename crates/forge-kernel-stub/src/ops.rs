@@ -73,13 +73,21 @@ pub fn caja(
         .map(|(i, b)| {
             let (mark, prov) = id(i as u32);
             Cara {
-                id: StableId { origin: owner, class: TopoClass::Face, mark },
+                id: StableId {
+                    origin: owner,
+                    class: TopoClass::Face,
+                    mark,
+                },
                 prov,
                 bucle: b.to_vec(),
             }
         })
         .collect();
-    Ok(Poly { verts: v, caras, solido: true })
+    Ok(Poly {
+        verts: v,
+        caras,
+        solido: true,
+    })
 }
 
 /// Revolución facetada.
@@ -91,10 +99,14 @@ pub fn caja(
 pub fn revolve(perfil: &Poly, opts: RevolveOpts, owner: FeatureId) -> KernelResult<Poly> {
     let eje = opts.axis_dir.normalize_or_zero();
     if eje == DVec3::ZERO {
-        return Err(KernelError::InvalidInput { detail: "eje de revolucion nulo".into() });
+        return Err(KernelError::InvalidInput {
+            detail: "eje de revolucion nulo".into(),
+        });
     }
     if opts.angle_rad.abs() < 1e-9 {
-        return Err(KernelError::Degenerate { hint: "angulo de revolucion nulo".into() });
+        return Err(KernelError::Degenerate {
+            hint: "angulo de revolucion nulo".into(),
+        });
     }
     let completo = opts.angle_rad.abs() >= std::f64::consts::TAU - 1e-9;
     let n = ((opts.angle_rad.abs().to_degrees() / 15.0).ceil() as u32).clamp(3, 720);
@@ -126,27 +138,45 @@ pub fn revolve(perfil: &Poly, opts: RevolveOpts, owner: FeatureId) -> KernelResu
         let mark = marca("rev_side", i as u32);
         for k in 0..n {
             caras.push(Cara {
-                id: StableId { origin: owner, class: TopoClass::Face, mark },
-                prov: TopoProvenance::SweptFromProfileEdge { edge_index: i as u32 },
+                id: StableId {
+                    origin: owner,
+                    class: TopoClass::Face,
+                    mark,
+                },
+                prov: TopoProvenance::SweptFromProfileEdge {
+                    edge_index: i as u32,
+                },
                 bucle: vec![idx(k, i), idx(k, j), idx(k + 1, j), idx(k + 1, i)],
             });
         }
     }
     if !completo {
         caras.push(Cara {
-            id: StableId { origin: owner, class: TopoClass::Face, mark: marca("cap_start", 0) },
+            id: StableId {
+                origin: owner,
+                class: TopoClass::Face,
+                mark: marca("cap_start", 0),
+            },
             prov: TopoProvenance::Cap { start: true },
             bucle: (0..m as u32).rev().collect(),
         });
         let base = n * m as u32;
         caras.push(Cara {
-            id: StableId { origin: owner, class: TopoClass::Face, mark: marca("cap_end", 0) },
+            id: StableId {
+                origin: owner,
+                class: TopoClass::Face,
+                mark: marca("cap_end", 0),
+            },
             prov: TopoProvenance::Cap { start: false },
             bucle: (base..base + m as u32).collect(),
         });
     }
 
-    let mut p = Poly { verts, caras, solido: true };
+    let mut p = Poly {
+        verts,
+        caras,
+        solido: true,
+    };
     p.soldar();
     if p.volumen_con_signo() < 0.0 {
         p.invertir();
@@ -174,10 +204,14 @@ pub fn biselar(
     es_fillet: bool,
 ) -> KernelResult<Poly> {
     if dist <= 0.0 {
-        return Err(KernelError::InvalidInput { detail: format!("distancia {dist} no positiva") });
+        return Err(KernelError::InvalidInput {
+            detail: format!("distancia {dist} no positiva"),
+        });
     }
     if seleccion.is_empty() {
-        return Err(KernelError::InvalidInput { detail: "sin aristas seleccionadas".into() });
+        return Err(KernelError::InvalidInput {
+            detail: "sin aristas seleccionadas".into(),
+        });
     }
     let aristas = p.aristas(prev_owner)?;
     let mut elegidas = Vec::new();
@@ -218,7 +252,10 @@ pub fn biselar(
         let m = c.bucle.len();
         for i in 0..m {
             let (a, b) = (c.bucle[i], c.bucle[(i + 1) % m]);
-            caras_de_arista.entry((a.min(b), a.max(b))).or_default().push(fi as u32);
+            caras_de_arista
+                .entry((a.min(b), a.max(b)))
+                .or_default()
+                .push(fi as u32);
         }
     }
     for v in tocado.keys() {
@@ -278,7 +315,11 @@ pub fn biselar(
                     .iter()
                     .find(|f| vecinas.contains(f))
                     .unwrap_or(&e.caras[0]);
-                let segunda = *e.caras.iter().find(|f| **f != primera).unwrap_or(&e.caras[1]);
+                let segunda = *e
+                    .caras
+                    .iter()
+                    .find(|f| **f != primera)
+                    .unwrap_or(&e.caras[1]);
                 bucle.push(copia[&(v, primera)]);
                 bucle.push(copia[&(v, segunda)]);
             }
@@ -313,7 +354,11 @@ pub fn biselar(
         });
     }
 
-    let mut r = Poly { verts, caras, solido: true };
+    let mut r = Poly {
+        verts,
+        caras,
+        solido: true,
+    };
     r.soldar();
     if r.volumen_con_signo() < 0.0 {
         r.invertir();
@@ -360,8 +405,14 @@ fn restar(a: Aabb, c: Aabb) -> Vec<Aabb> {
     push(a.min, DVec3::new(c.min.x, a.max.y, a.max.z));
     push(DVec3::new(c.max.x, a.min.y, a.min.z), a.max);
     let (x0, x1) = (c.min.x.max(a.min.x), c.max.x.min(a.max.x));
-    push(DVec3::new(x0, a.min.y, a.min.z), DVec3::new(x1, c.min.y, a.max.z));
-    push(DVec3::new(x0, c.max.y, a.min.z), DVec3::new(x1, a.max.y, a.max.z));
+    push(
+        DVec3::new(x0, a.min.y, a.min.z),
+        DVec3::new(x1, c.min.y, a.max.z),
+    );
+    push(
+        DVec3::new(x0, c.max.y, a.min.z),
+        DVec3::new(x1, a.max.y, a.max.z),
+    );
     let (y0, y1) = (c.min.y.max(a.min.y), c.max.y.min(a.max.y));
     push(DVec3::new(x0, y0, a.min.z), DVec3::new(x1, y1, c.min.z));
     push(DVec3::new(x0, y0, c.max.z), DVec3::new(x1, y1, a.max.z));
@@ -429,14 +480,24 @@ pub fn booleano(
         let sub = caja(caja_k.min, caja_k.max, owner, |i| {
             (
                 crate::poly::fnv(&[origen.mark, k as u64, i as u64]),
-                TopoProvenance::SplitFrom { original: *origen, piece: k as u32 },
+                TopoProvenance::SplitFrom {
+                    original: *origen,
+                    piece: k as u32,
+                },
             )
         })?;
         let base = verts.len() as u32;
         verts.extend_from_slice(&sub.verts);
         for c in sub.caras {
-            caras.push(Cara { bucle: c.bucle.iter().map(|i| i + base).collect(), ..c });
+            caras.push(Cara {
+                bucle: c.bucle.iter().map(|i| i + base).collect(),
+                ..c
+            });
         }
     }
-    Ok(Poly { verts, caras, solido: true })
+    Ok(Poly {
+        verts,
+        caras,
+        solido: true,
+    })
 }

@@ -62,7 +62,10 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { max_instrucciones: 20_000_000, max_memoria_bytes: 64 * 1024 * 1024 }
+        Limits {
+            max_instrucciones: 20_000_000,
+            max_memoria_bytes: 64 * 1024 * 1024,
+        }
     }
 }
 
@@ -104,8 +107,13 @@ pub struct LuaHost {
 impl LuaHost {
     pub fn new(limites: Limits) -> ScriptResult<Self> {
         let lua = Lua::new();
-        lua.set_memory_limit(limites.max_memoria_bytes).map_err(err_lua)?;
-        Ok(LuaHost { lua, limites, contador: Arc::new(AtomicU64::new(0)) })
+        lua.set_memory_limit(limites.max_memoria_bytes)
+            .map_err(err_lua)?;
+        Ok(LuaHost {
+            lua,
+            limites,
+            contador: Arc::new(AtomicU64::new(0)),
+        })
     }
 
     pub fn limits(&self) -> Limits {
@@ -124,7 +132,11 @@ impl LuaHost {
     /// [`CommandBus::finish`] y sus comandos no se aplicaron.
     pub fn run(&self, doc: &mut Document, bus: &mut CommandBus, src: &str) -> ScriptResult<()> {
         self.armar_hook()?;
-        let estado = RefCell::new(Puente { doc, bus, fallo: None });
+        let estado = RefCell::new(Puente {
+            doc,
+            bus,
+            fallo: None,
+        });
 
         let r = self.lua.scope(|scope| {
             let t = self.lua.create_table()?;
@@ -146,37 +158,64 @@ impl LuaHost {
                 Ok(out.entity().map(id_a_lua))
             });
             fn_forge!("despawn", |p, id: String| {
-                p.enviar(Command::Despawn { entity: id_de_lua(&id)? })?;
+                p.enviar(Command::Despawn {
+                    entity: id_de_lua(&id)?,
+                })?;
                 Ok(())
             });
             fn_forge!("set_name", |p, (id, name): (String, String)| {
-                p.enviar(Command::SetName { entity: id_de_lua(&id)?, name })?;
+                p.enviar(Command::SetName {
+                    entity: id_de_lua(&id)?,
+                    name,
+                })?;
                 Ok(())
             });
             fn_forge!("set_visible", |p, (id, v): (String, bool)| {
-                p.enviar(Command::SetVisible { entity: id_de_lua(&id)?, visible: v })?;
+                p.enviar(Command::SetVisible {
+                    entity: id_de_lua(&id)?,
+                    visible: v,
+                })?;
                 Ok(())
             });
             fn_forge!("set_transform", |p, (id, t): (String, Table)| {
                 let transform = transform_de_lua(&t)?;
-                p.enviar(Command::SetTransform { entity: id_de_lua(&id)?, transform })?;
+                p.enviar(Command::SetTransform {
+                    entity: id_de_lua(&id)?,
+                    transform,
+                })?;
                 Ok(())
             });
-            fn_forge!("set_parent", |p, (hijo, padre): (String, Option<String>)| {
-                let parent = match padre {
-                    Some(s) => Some(id_de_lua(&s)?),
-                    None => None,
-                };
-                p.enviar(Command::SetParent { child: id_de_lua(&hijo)?, parent })?;
-                Ok(())
-            });
-            fn_forge!("set_geometry", |p, (id, kind, hex): (String, String, String)| {
+            fn_forge!(
+                "set_parent",
+                |p, (hijo, padre): (String, Option<String>)| {
+                    let parent = match padre {
+                        Some(s) => Some(id_de_lua(&s)?),
+                        None => None,
+                    };
+                    p.enviar(Command::SetParent {
+                        child: id_de_lua(&hijo)?,
+                        parent,
+                    })?;
+                    Ok(())
+                }
+            );
+            fn_forge!("set_geometry", |p,
+                                       (id, kind, hex): (
+                String,
+                String,
+                String
+            )| {
                 let payload = geometria_de_lua(&kind, &hex)?;
-                p.enviar(Command::SetGeometry { entity: id_de_lua(&id)?, payload })?;
+                p.enviar(Command::SetGeometry {
+                    entity: id_de_lua(&id)?,
+                    payload,
+                })?;
                 Ok(())
             });
             fn_forge!("clear_geometry", |p, id: String| {
-                p.enviar(Command::ClearGeometry { entity: id_de_lua(&id)? })?;
+                p.enviar(Command::ClearGeometry {
+                    entity: id_de_lua(&id)?,
+                })?;
                 Ok(())
             });
             fn_forge!("undo", |p, (): ()| {
@@ -223,30 +262,39 @@ impl LuaHost {
         let contador = Arc::clone(&self.contador);
         let limite = self.limites.max_instrucciones;
         self.lua
-            .set_hook(HookTriggers::default().every_nth_instruction(PASO_DEL_HOOK), move |_, _| {
-                let usadas =
-                    contador.fetch_add(PASO_DEL_HOOK as u64, Ordering::Relaxed) + PASO_DEL_HOOK as u64;
-                if usadas > limite {
-                    // Devolver `Err` desde el hook aborta la VM: es la única vía
-                    // de detener un bucle sin `longjmp` ni matar el hilo.
-                    return Err(mlua::Error::RuntimeError(MARCA_INSTRUCCIONES.into()));
-                }
-                Ok(VmState::Continue)
-            })
+            .set_hook(
+                HookTriggers::default().every_nth_instruction(PASO_DEL_HOOK),
+                move |_, _| {
+                    let usadas = contador.fetch_add(PASO_DEL_HOOK as u64, Ordering::Relaxed)
+                        + PASO_DEL_HOOK as u64;
+                    if usadas > limite {
+                        // Devolver `Err` desde el hook aborta la VM: es la única vía
+                        // de detener un bucle sin `longjmp` ni matar el hilo.
+                        return Err(mlua::Error::RuntimeError(MARCA_INSTRUCCIONES.into()));
+                    }
+                    Ok(VmState::Continue)
+                },
+            )
             .map_err(err_lua)?;
         Ok(())
     }
 
     fn clasificar(&self, e: mlua::Error) -> ScriptError {
         if matches!(e, mlua::Error::MemoryError(_)) {
-            return ScriptError::LimiteDeMemoria { limite: self.limites.max_memoria_bytes };
+            return ScriptError::LimiteDeMemoria {
+                limite: self.limites.max_memoria_bytes,
+            };
         }
         let txt = e.to_string();
         if txt.contains(MARCA_INSTRUCCIONES) {
-            return ScriptError::LimiteDeInstrucciones { limite: self.limites.max_instrucciones };
+            return ScriptError::LimiteDeInstrucciones {
+                limite: self.limites.max_instrucciones,
+            };
         }
         if txt.contains("not enough memory") {
-            return ScriptError::LimiteDeMemoria { limite: self.limites.max_memoria_bytes };
+            return ScriptError::LimiteDeMemoria {
+                limite: self.limites.max_memoria_bytes,
+            };
         }
         ScriptError::Lua(txt)
     }
@@ -288,12 +336,14 @@ fn id_a_lua(e: EntityId) -> String {
 }
 
 fn id_de_lua(s: &str) -> mlua::Result<EntityId> {
-    u128::from_str_radix(s, 16).map(EntityId::from_u128).map_err(|_| {
-        mlua::Error::RuntimeError(format!(
-            "«{s}» no es un id de entidad. Usa el valor que devolvió forge.spawn(), \
+    u128::from_str_radix(s, 16)
+        .map(EntityId::from_u128)
+        .map_err(|_| {
+            mlua::Error::RuntimeError(format!(
+                "«{s}» no es un id de entidad. Usa el valor que devolvió forge.spawn(), \
              una cadena hexadecimal de 32 caracteres."
-        ))
-    })
+            ))
+        })
 }
 
 fn geometria_de_lua(kind: &str, hex: &str) -> mlua::Result<GeometryPayload> {
@@ -347,7 +397,9 @@ trait NumeroDeLua: Sized {
 impl NumeroDeLua for f64 {
     fn from_lua(v: Value, campo: &str) -> mlua::Result<Self> {
         v.as_f64().ok_or_else(|| {
-            mlua::Error::RuntimeError(format!("el campo `{campo}` de la transformada no es un número"))
+            mlua::Error::RuntimeError(format!(
+                "el campo `{campo}` de la transformada no es un número"
+            ))
         })
     }
 }

@@ -36,7 +36,9 @@ fn main() -> forge_io::Result<()> {
 
     // Una malla que se instancia tres veces, y un solido exacto.
     let malla = blobs.put(b"<malla de la columna: 12k triangulos>").unwrap();
-    let solido = blobs.put(b"<B-Rep de la base: 1 solido, 14 caras>").unwrap();
+    let solido = blobs
+        .put(b"<B-Rep de la base: 1 solido, 14 caras>")
+        .unwrap();
 
     let base = doc.edit("crear base", |tx| {
         let e = tx.spawn();
@@ -52,7 +54,10 @@ fn main() -> forge_io::Result<()> {
             let e = tx.spawn();
             tx.set(e, Name(format!("columna {}", i + 1)));
             tx.set(e, Parent(base));
-            tx.set(e, Transform::from_translation(DVec3::new(120.0 * i as f64, 0.0, 40.0)));
+            tx.set(
+                e,
+                Transform::from_translation(DVec3::new(120.0 * i as f64, 0.0, 40.0)),
+            );
             tx.set(e, Geometry(GeometryPayload::Mesh(malla)));
             tx.set(e, Visible(true));
         });
@@ -62,15 +67,32 @@ fn main() -> forge_io::Result<()> {
     println!("   entidades          {}", snap.entity_count());
     println!("   con geometria      {}", snap.iter::<Geometry>().count());
     for (e, g) in snap.iter::<Geometry>() {
-        let nombre = snap.get::<Name>(e).map(|n| n.0.as_str()).unwrap_or("(sin nombre)");
-        println!("     {:<12} {:<6} dominio {:?}", nombre, g.0.kind(), g.0.domain());
+        let nombre = snap
+            .get::<Name>(e)
+            .map(|n| n.0.as_str())
+            .unwrap_or("(sin nombre)");
+        println!(
+            "     {:<12} {:<6} dominio {:?}",
+            nombre,
+            g.0.kind(),
+            g.0.domain()
+        );
     }
 
     // ------------------------------------------------------------------
     titulo("2. Deduplicacion: cuatro geometrias, dos blobs");
-    println!("   componentes Geometry     {}", snap.iter::<Geometry>().count());
-    println!("   blobs referenciados      {}", snap.referenced_blobs().len());
-    println!("   blobs en el almacen      {}", blobs.list().unwrap().len());
+    println!(
+        "   componentes Geometry     {}",
+        snap.iter::<Geometry>().count()
+    );
+    println!(
+        "   blobs referenciados      {}",
+        snap.referenced_blobs().len()
+    );
+    println!(
+        "   blobs en el almacen      {}",
+        blobs.list().unwrap().len()
+    );
     println!("   bytes almacenados        {}", blobs.bytes());
     println!("   (las 3 columnas comparten un solo blob: el nombre ES el contenido)");
 
@@ -79,7 +101,10 @@ fn main() -> forge_io::Result<()> {
     for (e, n) in snap.iter::<Name>() {
         let m = snap.world_transform(e);
         let p = m.transform_point3(DVec3::ZERO);
-        println!("   {:<12} origen en mundo ({:7.1}, {:7.1}, {:7.1}) mm", n.0, p.x, p.y, p.z);
+        println!(
+            "   {:<12} origen en mundo ({:7.1}, {:7.1}, {:7.1}) mm",
+            n.0, p.x, p.y, p.z
+        );
     }
 
     // ------------------------------------------------------------------
@@ -88,18 +113,27 @@ fn main() -> forge_io::Result<()> {
     std::fs::create_dir_all(dir).map_err(|e| IoError::at(dir, e))?;
     let ruta = dir.join("soporte.forge");
     let opts = SaveOptions {
-        history: doc.history().iter().map(|(v, l)| (*v, l.to_string())).collect(),
+        history: doc
+            .history()
+            .iter()
+            .map(|(v, l)| (*v, l.to_string()))
+            .collect(),
         ..Default::default()
     };
     save(&ruta, &snap, &blobs, &opts)?;
-    let tam = std::fs::metadata(&ruta).map_err(|e| IoError::at(&ruta, e))?.len();
+    let tam = std::fs::metadata(&ruta)
+        .map_err(|e| IoError::at(&ruta, e))?
+        .len();
     println!("   {} ({tam} bytes)", ruta.display());
     let f = std::fs::File::open(&ruta).map_err(|e| IoError::at(&ruta, e))?;
     let zip = zip::ZipArchive::new(f).map_err(|e| IoError::Corrupto(e.to_string()))?;
     for n in zip.file_names() {
         println!("     {n}");
     }
-    println!("   (es un ZIP: `unzip -l {}` funciona sin FORGE)", ruta.display());
+    println!(
+        "   (es un ZIP: `unzip -l {}` funciona sin FORGE)",
+        ruta.display()
+    );
 
     // ------------------------------------------------------------------
     titulo("5. Cargar en un almacen vacio y comparar");
@@ -109,9 +143,16 @@ fn main() -> forge_io::Result<()> {
     println!("   huella cargada     {}", cargado.snapshot().fingerprint());
     println!(
         "   igualdad estructural: {}",
-        if cargado.snapshot().fingerprint() == snap.fingerprint() { "SI" } else { "NO" }
+        if cargado.snapshot().fingerprint() == snap.fingerprint() {
+            "SI"
+        } else {
+            "NO"
+        }
     );
-    println!("   blobs traidos por el archivo: {}", frescos.list().unwrap().len());
+    println!(
+        "   blobs traidos por el archivo: {}",
+        frescos.list().unwrap().len()
+    );
 
     // ------------------------------------------------------------------
     titulo("6. Undo unificado");
@@ -129,23 +170,31 @@ fn main() -> forge_io::Result<()> {
     doc.redo();
     println!(
         "   vuelta al estado original: {}",
-        if doc.snapshot().fingerprint() == antes { "SI" } else { "NO" }
+        if doc.snapshot().fingerprint() == antes {
+            "SI"
+        } else {
+            "NO"
+        }
     );
 
     titulo("7. Una operacion que cruza pilares es UN solo undo");
     let f0 = doc.snapshot().fingerprint();
     doc.edit("importar pieza", |tx| {
         let e = tx.spawn();
-        tx.set(e, Name("tornillo".into()));                          // escena
-        tx.set(e, Transform::from_translation(DVec3::Z * 80.0));     // escena
-        tx.set(e, Geometry(GeometryPayload::Brep(solido)));          // kernel
-        tx.set(e, Visible(true));                                    // render
+        tx.set(e, Name("tornillo".into())); // escena
+        tx.set(e, Transform::from_translation(DVec3::Z * 80.0)); // escena
+        tx.set(e, Geometry(GeometryPayload::Brep(solido))); // kernel
+        tx.set(e, Visible(true)); // render
     });
     println!("   cuatro componentes de tres pilares en una transaccion");
     doc.undo();
     println!(
         "   un Ctrl+Z los revierte todos: {}",
-        if doc.snapshot().fingerprint() == f0 { "SI" } else { "NO" }
+        if doc.snapshot().fingerprint() == f0 {
+            "SI"
+        } else {
+            "NO"
+        }
     );
 
     // ------------------------------------------------------------------
@@ -167,10 +216,18 @@ fn main() -> forge_io::Result<()> {
     // ------------------------------------------------------------------
     titulo("9. Deflexion adaptativa (ADR-0002 R1b)");
     let fov = 45f64.to_radians();
-    println!("   {:>8}  {:>14}  {:>14}", "zoom", "distancia mm", "deflexion mm");
+    println!(
+        "   {:>8}  {:>14}  {:>14}",
+        "zoom", "distancia mm", "deflexion mm"
+    );
     for z in [1.0, 4.0, 16.0, 64.0] {
         let d = 1000.0 / z;
-        println!("   {:>7}x  {:>14.2}  {:>14.6}", z, d, chord_deflection(d, fov, 1080.0, 0.4));
+        println!(
+            "   {:>7}x  {:>14.2}  {:>14.6}",
+            z,
+            d,
+            chord_deflection(d, fov, 1080.0, 0.4)
+        );
     }
     println!("   el error geometrico se mantiene en 0.4 px a cualquier zoom");
 

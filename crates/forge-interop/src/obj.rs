@@ -27,7 +27,11 @@ pub struct ObjOptions {
 
 impl ObjOptions {
     pub fn completo() -> Self {
-        ObjOptions { y_up: false, write_normals: true, write_uvs: true }
+        ObjOptions {
+            y_up: false,
+            write_normals: true,
+            write_uvs: true,
+        }
     }
 }
 
@@ -35,7 +39,11 @@ pub fn to_string(soup: &TriangleSoup, opts: ObjOptions) -> Result<String> {
     soup.validate()?;
     let mut s = String::with_capacity(soup.positions.len() * 32);
     let _ = writeln!(s, "# generado por FORGE");
-    let _ = writeln!(s, "# unidades: milimetros · ejes: {}", if opts.y_up { "Y arriba" } else { "Z arriba" });
+    let _ = writeln!(
+        s,
+        "# unidades: milimetros · ejes: {}",
+        if opts.y_up { "Y arriba" } else { "Z arriba" }
+    );
     if !soup.name.is_empty() {
         let _ = writeln!(s, "o {}", soup.name);
     }
@@ -65,16 +73,31 @@ pub fn to_string(soup: &TriangleSoup, opts: ObjOptions) -> Result<String> {
         let f = |i: u32| i + 1;
         match (con_uv, con_n) {
             (true, true) => {
-                let _ = writeln!(s, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}",
-                    a = f(tri[0]), b = f(tri[1]), c = f(tri[2]));
+                let _ = writeln!(
+                    s,
+                    "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}",
+                    a = f(tri[0]),
+                    b = f(tri[1]),
+                    c = f(tri[2])
+                );
             }
             (false, true) => {
-                let _ = writeln!(s, "f {a}//{a} {b}//{b} {c}//{c}",
-                    a = f(tri[0]), b = f(tri[1]), c = f(tri[2]));
+                let _ = writeln!(
+                    s,
+                    "f {a}//{a} {b}//{b} {c}//{c}",
+                    a = f(tri[0]),
+                    b = f(tri[1]),
+                    c = f(tri[2])
+                );
             }
             (true, false) => {
-                let _ = writeln!(s, "f {a}/{a} {b}/{b} {c}/{c}",
-                    a = f(tri[0]), b = f(tri[1]), c = f(tri[2]));
+                let _ = writeln!(
+                    s,
+                    "f {a}/{a} {b}/{b} {c}/{c}",
+                    a = f(tri[0]),
+                    b = f(tri[1]),
+                    c = f(tri[2])
+                );
             }
             (false, false) => {
                 let _ = writeln!(s, "f {} {} {}", f(tri[0]), f(tri[1]), f(tri[2]));
@@ -87,7 +110,10 @@ pub fn to_string(soup: &TriangleSoup, opts: ObjOptions) -> Result<String> {
 pub fn write(path: impl AsRef<Path>, soup: &TriangleSoup, opts: ObjOptions) -> Result<()> {
     let path = path.as_ref();
     let s = to_string(soup, opts)?;
-    std::fs::write(path, s).map_err(|e| InteropError::Io { path: path.into(), source: e })
+    std::fs::write(path, s).map_err(|e| InteropError::Io {
+        path: path.into(),
+        source: e,
+    })
 }
 
 pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
@@ -114,7 +140,10 @@ pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
                 detail: format!("falta el componente {campo}"),
             })?
             .parse::<f64>()
-            .map_err(|e| InteropError::Malformed { line: n + 1, detail: e.to_string() })
+            .map_err(|e| InteropError::Malformed {
+                line: n + 1,
+                detail: e.to_string(),
+            })
         };
 
         match clave {
@@ -124,11 +153,19 @@ pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
                 }
             }
             "v" => {
-                let p = DVec3::new(num(it.next(), "x")?, num(it.next(), "y")?, num(it.next(), "z")?);
+                let p = DVec3::new(
+                    num(it.next(), "x")?,
+                    num(it.next(), "y")?,
+                    num(it.next(), "z")?,
+                );
                 pos_crudas.push(if opts.y_up { y_up_to_z_up(p) } else { p });
             }
             "vn" => {
-                let v = DVec3::new(num(it.next(), "x")?, num(it.next(), "y")?, num(it.next(), "z")?);
+                let v = DVec3::new(
+                    num(it.next(), "x")?,
+                    num(it.next(), "y")?,
+                    num(it.next(), "z")?,
+                );
                 normales_indexadas.push(if opts.y_up { y_up_to_z_up(v) } else { v });
             }
             "vt" => {
@@ -147,9 +184,12 @@ pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
                     let mut partes = v.split('/');
                     let leer = |p: Option<&str>, total: usize| -> Result<u32> {
                         let raw: i64 = match p {
-                            Some(s) if !s.is_empty() => s.parse().map_err(|_| {
-                                InteropError::Malformed { line: n + 1, detail: format!("indice `{s}`") }
-                            })?,
+                            Some(s) if !s.is_empty() => {
+                                s.parse().map_err(|_| InteropError::Malformed {
+                                    line: n + 1,
+                                    detail: format!("indice `{s}`"),
+                                })?
+                            }
                             _ => return Ok(u32::MAX), // ausente
                         };
                         // OBJ admite indices negativos, relativos al final.
@@ -181,7 +221,8 @@ pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
                 // Abanico: correcto para poligonos convexos, que es lo que
                 // produce cualquier exportador sensato.
                 for k in 1..idx.len() - 1 {
-                    soup.indices.extend_from_slice(&[idx[0], idx[k], idx[k + 1]]);
+                    soup.indices
+                        .extend_from_slice(&[idx[0], idx[k], idx[k + 1]]);
                 }
             }
             _ => {} // mtllib, usemtl, s, ... se ignoran a proposito
@@ -202,7 +243,9 @@ pub fn from_str(txt: &str, opts: ObjOptions) -> Result<TriangleSoup> {
 
 pub fn read(path: impl AsRef<Path>, opts: ObjOptions) -> Result<TriangleSoup> {
     let path = path.as_ref();
-    let txt = std::fs::read_to_string(path)
-        .map_err(|e| InteropError::Io { path: path.into(), source: e })?;
+    let txt = std::fs::read_to_string(path).map_err(|e| InteropError::Io {
+        path: path.into(),
+        source: e,
+    })?;
     from_str(&txt, opts)
 }

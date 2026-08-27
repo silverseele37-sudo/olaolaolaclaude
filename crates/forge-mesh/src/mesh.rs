@@ -37,7 +37,9 @@ pub struct ProvenanceMap {
 
 impl ProvenanceMap {
     pub fn con_capacidad(n: usize) -> Self {
-        ProvenanceMap { face_origin: vec![None; n] }
+        ProvenanceMap {
+            face_origin: vec![None; n],
+        }
     }
 
     /// Fracción de caras que conservan procedencia, de 0 a 1.
@@ -164,10 +166,14 @@ impl Mesh {
     /// diagnosticar desde el síntoma.
     pub fn validate(&self) -> Result<()> {
         if !self.normals.is_empty() && self.normals.len() != self.positions.len() {
-            return Err(MeshError::Corrupta("normales descuadradas con posiciones".into()));
+            return Err(MeshError::Corrupta(
+                "normales descuadradas con posiciones".into(),
+            ));
         }
         if !self.uvs.is_empty() && self.uvs.len() != self.positions.len() {
-            return Err(MeshError::Corrupta("UVs descuadradas con posiciones".into()));
+            return Err(MeshError::Corrupta(
+                "UVs descuadradas con posiciones".into(),
+            ));
         }
         if self.prov.face_origin.len() != self.faces.len() {
             return Err(MeshError::Corrupta(format!(
@@ -239,7 +245,10 @@ impl Adjacency {
             let n = f.verts.len();
             for i in 0..n {
                 let (a, b) = (f.verts[i], f.verts[(i + 1) % n]);
-                edge_faces.entry((a.min(b), a.max(b))).or_default().push(fi as u32);
+                edge_faces
+                    .entry((a.min(b), a.max(b)))
+                    .or_default()
+                    .push(fi as u32);
                 vertex_faces[a as usize].push(fi as u32);
                 vecinos[a as usize].insert(b);
                 vecinos[b as usize].insert(a);
@@ -248,7 +257,10 @@ impl Adjacency {
         Adjacency {
             edge_faces,
             vertex_faces,
-            vertex_neighbors: vecinos.into_iter().map(|s| s.into_iter().collect()).collect(),
+            vertex_neighbors: vecinos
+                .into_iter()
+                .map(|s| s.into_iter().collect())
+                .collect(),
         }
     }
 

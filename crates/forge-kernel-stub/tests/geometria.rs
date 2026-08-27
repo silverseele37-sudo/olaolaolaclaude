@@ -35,12 +35,22 @@ fn volumen_teselado(t: &Tessellation) -> f64 {
 #[test]
 fn caja_volumen_area_y_centroide_exactos() {
     let k = k();
-    let s = k.box_solid(DVec3::ZERO, DVec3::new(10.0, 20.0, 30.0), f()).unwrap();
+    let s = k
+        .box_solid(DVec3::ZERO, DVec3::new(10.0, 20.0, 30.0), f())
+        .unwrap();
     let m = k.mass_properties(s).unwrap();
-    assert!((m.volume_mm3 - 6000.0).abs() < 1e-9, "volumen {}", m.volume_mm3);
+    assert!(
+        (m.volume_mm3 - 6000.0).abs() < 1e-9,
+        "volumen {}",
+        m.volume_mm3
+    );
     // 2·(10·20 + 20·30 + 30·10) = 2·1100 = 2200
     assert!((m.area_mm2 - 2200.0).abs() < 1e-9, "area {}", m.area_mm2);
-    assert!((m.centroid - DVec3::new(5.0, 10.0, 15.0)).length() < 1e-9, "centroide {:?}", m.centroid);
+    assert!(
+        (m.centroid - DVec3::new(5.0, 10.0, 15.0)).length() < 1e-9,
+        "centroide {:?}",
+        m.centroid
+    );
     assert!(k.is_valid(s).unwrap().valid);
 
     let t = k.topology(s).unwrap();
@@ -55,14 +65,22 @@ fn extrusion_de_un_triangulo_da_el_volumen_calculado_a_mano() {
     // triangulo rectangulo de catetos 10: area 50 mm²
     let perfil = k
         .profile_from_polygon(
-            &[DVec2::new(0.0, 0.0), DVec2::new(10.0, 0.0), DVec2::new(0.0, 10.0)],
+            &[
+                DVec2::new(0.0, 0.0),
+                DVec2::new(10.0, 0.0),
+                DVec2::new(0.0, 10.0),
+            ],
             f(),
         )
         .unwrap();
     let s = k
         .extrude(
             perfil,
-            ExtrudeOpts { direction: DVec3::Z, distance_mm: 7.0, symmetric: false },
+            ExtrudeOpts {
+                direction: DVec3::Z,
+                distance_mm: 7.0,
+                symmetric: false,
+            },
             f(),
         )
         .unwrap();
@@ -85,7 +103,15 @@ fn extrusion_de_n_lados_da_n_mas_2_caras_con_procedencia_correcta() {
             .collect();
         let perfil = k.profile_from_polygon(&pts, f()).unwrap();
         let s = k
-            .extrude(perfil, ExtrudeOpts { direction: DVec3::Z, distance_mm: 5.0, symmetric: false }, f())
+            .extrude(
+                perfil,
+                ExtrudeOpts {
+                    direction: DVec3::Z,
+                    distance_mm: 5.0,
+                    symmetric: false,
+                },
+                f(),
+            )
             .unwrap();
         let t = k.topology(s).unwrap();
         assert_eq!(t.faces.len(), n as usize + 2, "poligono de {n} lados");
@@ -99,7 +125,10 @@ fn extrusion_de_n_lados_da_n_mas_2_caras_con_procedencia_correcta() {
             .count();
         assert_eq!(laterales, n as usize);
         assert_eq!(
-            t.faces.iter().filter(|f| matches!(f.provenance, TopoProvenance::Cap { .. })).count(),
+            t.faces
+                .iter()
+                .filter(|f| matches!(f.provenance, TopoProvenance::Cap { .. }))
+                .count(),
             2
         );
 
@@ -118,17 +147,30 @@ fn extrusion_simetrica_reparte_la_distancia_a_los_dos_lados() {
     let perfil = k
         .profile_from_polygon(
             &[
-                DVec2::new(-5.0, -5.0), DVec2::new(5.0, -5.0),
-                DVec2::new(5.0, 5.0), DVec2::new(-5.0, 5.0),
+                DVec2::new(-5.0, -5.0),
+                DVec2::new(5.0, -5.0),
+                DVec2::new(5.0, 5.0),
+                DVec2::new(-5.0, 5.0),
             ],
             f(),
         )
         .unwrap();
     let s = k
-        .extrude(perfil, ExtrudeOpts { direction: DVec3::Z, distance_mm: 8.0, symmetric: true }, f())
+        .extrude(
+            perfil,
+            ExtrudeOpts {
+                direction: DVec3::Z,
+                distance_mm: 8.0,
+                symmetric: true,
+            },
+            f(),
+        )
         .unwrap();
     let b = k.bbox(s).unwrap();
-    assert!((b.min.z + 4.0).abs() < 1e-9 && (b.max.z - 4.0).abs() < 1e-9, "{b:?}");
+    assert!(
+        (b.min.z + 4.0).abs() < 1e-9 && (b.max.z - 4.0).abs() < 1e-9,
+        "{b:?}"
+    );
     assert!((k.mass_properties(s).unwrap().volume_mm3 - 800.0).abs() < 1e-9);
 }
 
@@ -138,7 +180,11 @@ fn cilindro_analitico_tiene_volumen_y_area_exactos() {
     let s = k.cylinder(DVec3::ZERO, DVec3::Z, 10.0, 50.0, f()).unwrap();
     let m = k.mass_properties(s).unwrap();
     let pi = std::f64::consts::PI;
-    assert!((m.volume_mm3 - pi * 100.0 * 50.0).abs() < 1e-9, "volumen {}", m.volume_mm3);
+    assert!(
+        (m.volume_mm3 - pi * 100.0 * 50.0).abs() < 1e-9,
+        "volumen {}",
+        m.volume_mm3
+    );
     // lateral 2πrh + dos tapas 2πr²  =  2πr(h + r)
     assert!((m.area_mm2 - 2.0 * pi * 10.0 * 60.0).abs() < 1e-9);
     assert!((m.centroid - DVec3::new(0.0, 0.0, 25.0)).length() < 1e-9);
@@ -160,7 +206,13 @@ fn el_teselado_del_cilindro_converge_al_volumen_exacto() {
     let mut triangulos = Vec::new();
     for chord in [1.0, 0.25, 0.05, 0.01] {
         let t = k
-            .tessellate(s, &TessellationParams { chord_mm: chord, angular_deg: 360.0 })
+            .tessellate(
+                s,
+                &TessellationParams {
+                    chord_mm: chord,
+                    angular_deg: 360.0,
+                },
+            )
             .unwrap();
         t.validate().unwrap();
         errores.push((exacto - volumen_teselado(&t)).abs() / exacto);
@@ -170,7 +222,10 @@ fn el_teselado_del_cilindro_converge_al_volumen_exacto() {
         assert!(w[1] < w[0], "el error no bajo al refinar: {errores:?}");
     }
     for w in triangulos.windows(2) {
-        assert!(w[1] > w[0], "no salieron mas triangulos al refinar: {triangulos:?}");
+        assert!(
+            w[1] > w[0],
+            "no salieron mas triangulos al refinar: {triangulos:?}"
+        );
     }
 
     // Y el error no solo baja: baja **exactamente lo que dice la teoria**.
@@ -180,8 +235,13 @@ fn el_teselado_del_cilindro_converge_al_volumen_exacto() {
     // teselado y el calculo del numero de segmentos; un umbral elegido a ojo
     // no habria detectado, por ejemplo, un segmento de mas o de menos.
     for (i, chord) in [1.0, 0.25, 0.05, 0.01].iter().enumerate() {
-        let n = segmentos_para(10.0, &TessellationParams { chord_mm: *chord, angular_deg: 360.0 })
-            as f64;
+        let n = segmentos_para(
+            10.0,
+            &TessellationParams {
+                chord_mm: *chord,
+                angular_deg: 360.0,
+            },
+        ) as f64;
         let teorico = 1.0 - (n / std::f64::consts::TAU) * (std::f64::consts::TAU / n).sin();
         assert!(
             (errores[i] - teorico).abs() < teorico * 1e-6 + 1e-12,
@@ -195,33 +255,71 @@ fn el_teselado_del_cilindro_converge_al_volumen_exacto() {
 /// maximo de las dos, no una eleccion.
 #[test]
 fn manda_la_restriccion_mas_exigente_de_las_dos() {
-    let laxa = TessellationParams { chord_mm: 1e9, angular_deg: 360.0 };
-    let por_angulo = TessellationParams { chord_mm: 1e9, angular_deg: 5.0 };
-    let por_cuerda = TessellationParams { chord_mm: 0.001, angular_deg: 360.0 };
+    let laxa = TessellationParams {
+        chord_mm: 1e9,
+        angular_deg: 360.0,
+    };
+    let por_angulo = TessellationParams {
+        chord_mm: 1e9,
+        angular_deg: 5.0,
+    };
+    let por_cuerda = TessellationParams {
+        chord_mm: 0.001,
+        angular_deg: 360.0,
+    };
     assert_eq!(segmentos_para(10.0, &laxa), 8, "el minimo de seguridad");
     assert_eq!(segmentos_para(10.0, &por_angulo), 72, "360/5");
-    assert!(segmentos_para(10.0, &por_cuerda) > 72, "la cuerda fina debe pedir mas");
+    assert!(
+        segmentos_para(10.0, &por_cuerda) > 72,
+        "la cuerda fina debe pedir mas"
+    );
     // con las dos exigentes, gana la mayor
-    let ambas = TessellationParams { chord_mm: 0.001, angular_deg: 5.0 };
-    assert_eq!(segmentos_para(10.0, &ambas), segmentos_para(10.0, &por_cuerda));
+    let ambas = TessellationParams {
+        chord_mm: 0.001,
+        angular_deg: 5.0,
+    };
+    assert_eq!(
+        segmentos_para(10.0, &ambas),
+        segmentos_para(10.0, &por_cuerda)
+    );
 }
 
 #[test]
 fn segmentos_respetan_la_tolerancia_de_cuerda() {
     // r·(1 − cos(π/n)) ≤ chord
     for (r, chord) in [(10.0, 0.1), (50.0, 0.01), (1.0, 0.5)] {
-        let n = segmentos_para(r, &TessellationParams { chord_mm: chord, angular_deg: 360.0 });
+        let n = segmentos_para(
+            r,
+            &TessellationParams {
+                chord_mm: chord,
+                angular_deg: 360.0,
+            },
+        );
         let real = r * (1.0 - (std::f64::consts::PI / n as f64).cos());
-        assert!(real <= chord * 1.001, "r={r} chord={chord} n={n} real={real}");
+        assert!(
+            real <= chord * 1.001,
+            "r={r} chord={chord} n={n} real={real}"
+        );
     }
     // y nunca por debajo del minimo razonable
-    assert_eq!(segmentos_para(10.0, &TessellationParams { chord_mm: 1e9, angular_deg: 1e9 }), 8);
+    assert_eq!(
+        segmentos_para(
+            10.0,
+            &TessellationParams {
+                chord_mm: 1e9,
+                angular_deg: 1e9
+            }
+        ),
+        8
+    );
 }
 
 #[test]
 fn el_teselado_lleva_procedencia_completa_y_valida() {
     let k = k();
-    let s = k.box_solid(DVec3::ZERO, DVec3::new(4.0, 5.0, 6.0), f()).unwrap();
+    let s = k
+        .box_solid(DVec3::ZERO, DVec3::new(4.0, 5.0, 6.0), f())
+        .unwrap();
     let t = k.tessellate(s, &TessellationParams::default()).unwrap();
     t.validate().unwrap();
     assert_eq!(t.triangle_count(), 12, "una caja son 12 triangulos");
@@ -233,7 +331,10 @@ fn el_teselado_lleva_procedencia_completa_y_valida() {
 
     // las aristas se clasifican: las 12 de una caja son quiebres reales
     assert_eq!(t.edges.len(), 12);
-    assert!(t.edges.iter().all(|e| e.kind == EdgeKind::Sharp && e.kind.se_dibuja()));
+    assert!(t
+        .edges
+        .iter()
+        .all(|e| e.kind == EdgeKind::Sharp && e.kind.se_dibuja()));
 }
 
 /// El cilindro sí tiene una costura, y una costura **nunca** se dibuja: no es
@@ -243,10 +344,18 @@ fn el_cilindro_tiene_costura_y_no_se_dibuja() {
     let k = k();
     let s = k.cylinder(DVec3::ZERO, DVec3::Z, 5.0, 20.0, f()).unwrap();
     let t = k.tessellate(s, &TessellationParams::default()).unwrap();
-    let costuras: Vec<_> = t.edges.iter().filter(|e| e.kind == EdgeKind::Seam).collect();
+    let costuras: Vec<_> = t
+        .edges
+        .iter()
+        .filter(|e| e.kind == EdgeKind::Seam)
+        .collect();
     assert_eq!(costuras.len(), 1);
     assert!(!costuras[0].kind.se_dibuja());
-    assert_eq!(t.edges.iter().filter(|e| e.kind.se_dibuja()).count(), 2, "los dos circulos");
+    assert_eq!(
+        t.edges.iter().filter(|e| e.kind.se_dibuja()).count(),
+        2,
+        "los dos circulos"
+    );
 }
 
 /// Chaflán de 2 mm sobre una arista de un cubo de 10: quita un prisma
@@ -258,10 +367,19 @@ fn chaflan_quita_el_volumen_calculado_a_mano_y_crea_una_cara_blend() {
     let arista = k.topology(cubo).unwrap().edges[0].id;
 
     let s = k
-        .chamfer(cubo, &[arista], ChamferSpec::Symmetric { distance_mm: 2.0 }, f())
+        .chamfer(
+            cubo,
+            &[arista],
+            ChamferSpec::Symmetric { distance_mm: 2.0 },
+            f(),
+        )
         .unwrap();
     let m = k.mass_properties(s).unwrap();
-    assert!((m.volume_mm3 - 980.0).abs() < 1e-6, "volumen {}", m.volume_mm3);
+    assert!(
+        (m.volume_mm3 - 980.0).abs() < 1e-6,
+        "volumen {}",
+        m.volume_mm3
+    );
 
     let t = k.topology(s).unwrap();
     assert_eq!(t.faces.len(), 7, "6 caras heredadas + 1 chaflan");
@@ -273,10 +391,17 @@ fn chaflan_quita_el_volumen_calculado_a_mano_y_crea_una_cara_blend() {
     assert_eq!(blends.len(), 1);
     assert!(matches!(blends[0].provenance, TopoProvenance::Blend { of } if of == arista));
     assert_eq!(
-        t.faces.iter().filter(|f| matches!(f.provenance, TopoProvenance::Inherited { .. })).count(),
+        t.faces
+            .iter()
+            .filter(|f| matches!(f.provenance, TopoProvenance::Inherited { .. }))
+            .count(),
         6
     );
-    assert!(k.is_valid(s).unwrap().valid, "{:?}", k.is_valid(s).unwrap().problems);
+    assert!(
+        k.is_valid(s).unwrap().valid,
+        "{:?}",
+        k.is_valid(s).unwrap().problems
+    );
 }
 
 #[test]
@@ -297,11 +422,16 @@ fn el_fillet_produce_la_misma_topologia_que_el_chaflan() {
         .unwrap();
     let _ = b;
 
-    let s = k.fillet(cubo, &[a], FilletSpec::Constant { radius_mm: 1.5 }, f()).unwrap();
+    let s = k
+        .fillet(cubo, &[a], FilletSpec::Constant { radius_mm: 1.5 }, f())
+        .unwrap();
     let t = k.topology(s).unwrap();
     assert_eq!(t.faces.len(), 7);
     assert_eq!(
-        t.faces.iter().filter(|f| matches!(f.provenance, TopoProvenance::Blend { .. })).count(),
+        t.faces
+            .iter()
+            .filter(|f| matches!(f.provenance, TopoProvenance::Blend { .. }))
+            .count(),
         1
     );
 }
@@ -311,7 +441,9 @@ fn booleano_caja_menos_caja_da_el_volumen_exacto() {
     let k = k();
     let a = k.box_solid(DVec3::ZERO, DVec3::splat(10.0), f()).unwrap();
     // esquina de 4×4×4 metida dentro
-    let b = k.box_solid(DVec3::splat(6.0), DVec3::splat(12.0), f()).unwrap();
+    let b = k
+        .box_solid(DVec3::splat(6.0), DVec3::splat(12.0), f())
+        .unwrap();
 
     let d = k.boolean(BoolOp::Difference, a, b, f()).unwrap();
     // 1000 − 4³ = 936
@@ -326,18 +458,29 @@ fn booleano_caja_menos_caja_da_el_volumen_exacto() {
 
     // las piezas llevan procedencia de particion
     let t = k.topology(d).unwrap();
-    assert!(t.faces.iter().all(|f| matches!(f.provenance, TopoProvenance::SplitFrom { .. })));
+    assert!(t
+        .faces
+        .iter()
+        .all(|f| matches!(f.provenance, TopoProvenance::SplitFrom { .. })));
 }
 
 #[test]
 fn serializar_y_deserializar_conserva_la_geometria() {
     let k = k();
-    let s = k.box_solid(DVec3::new(-1.0, 2.0, -3.0), DVec3::new(4.0, 9.0, 5.0), f()).unwrap();
+    let s = k
+        .box_solid(DVec3::new(-1.0, 2.0, -3.0), DVec3::new(4.0, 9.0, 5.0), f())
+        .unwrap();
     let bytes = k.serialize(s).unwrap();
     let s2 = k.deserialize(&bytes, f()).unwrap();
-    let (m1, m2) = (k.mass_properties(s).unwrap(), k.mass_properties(s2).unwrap());
+    let (m1, m2) = (
+        k.mass_properties(s).unwrap(),
+        k.mass_properties(s2).unwrap(),
+    );
     assert!((m1.volume_mm3 - m2.volume_mm3).abs() < 1e-12);
-    assert_eq!(k.topology(s).unwrap().faces.len(), k.topology(s2).unwrap().faces.len());
+    assert_eq!(
+        k.topology(s).unwrap().faces.len(),
+        k.topology(s2).unwrap().faces.len()
+    );
 }
 
 #[test]
@@ -370,13 +513,21 @@ fn los_errores_son_datos_y_dicen_que_paso() {
     ));
     // perfil que se autointersecta (un "lazo")
     let lazo = [
-        DVec2::new(0.0, 0.0), DVec2::new(10.0, 10.0),
-        DVec2::new(10.0, 0.0), DVec2::new(0.0, 10.0),
+        DVec2::new(0.0, 0.0),
+        DVec2::new(10.0, 10.0),
+        DVec2::new(10.0, 0.0),
+        DVec2::new(0.0, 10.0),
     ];
-    assert!(matches!(k.profile_from_polygon(&lazo, f()), Err(KernelError::Degenerate { .. })));
+    assert!(matches!(
+        k.profile_from_polygon(&lazo, f()),
+        Err(KernelError::Degenerate { .. })
+    ));
 
     // handle desconocido
-    assert!(matches!(k.mass_properties(ShapeId(9999)), Err(KernelError::UnknownShape(_))));
+    assert!(matches!(
+        k.mass_properties(ShapeId(9999)),
+        Err(KernelError::UnknownShape(_))
+    ));
 
     // cilindro con radio no positivo
     assert!(matches!(
@@ -386,18 +537,38 @@ fn los_errores_son_datos_y_dicen_que_paso() {
 
     // extrusion de distancia nula
     let perfil = k
-        .profile_from_polygon(&[DVec2::ZERO, DVec2::new(1.0, 0.0), DVec2::new(0.0, 1.0)], f())
+        .profile_from_polygon(
+            &[DVec2::ZERO, DVec2::new(1.0, 0.0), DVec2::new(0.0, 1.0)],
+            f(),
+        )
         .unwrap();
     assert!(matches!(
-        k.extrude(perfil, ExtrudeOpts { direction: DVec3::Z, distance_mm: 0.0, symmetric: false }, f()),
+        k.extrude(
+            perfil,
+            ExtrudeOpts {
+                direction: DVec3::Z,
+                distance_mm: 0.0,
+                symmetric: false
+            },
+            f()
+        ),
         Err(KernelError::Degenerate { .. })
     ));
 
     // arista inexistente al biselar
     let cubo = k.box_solid(DVec3::ZERO, DVec3::ONE, f()).unwrap();
-    let falsa = StableId { origin: f(), class: forge_doc::TopoClass::Edge, mark: 0xDEAD };
+    let falsa = StableId {
+        origin: f(),
+        class: forge_doc::TopoClass::Edge,
+        mark: 0xDEAD,
+    };
     assert!(matches!(
-        k.chamfer(cubo, &[falsa], ChamferSpec::Symmetric { distance_mm: 0.1 }, f()),
+        k.chamfer(
+            cubo,
+            &[falsa],
+            ChamferSpec::Symmetric { distance_mm: 0.1 },
+            f()
+        ),
         Err(KernelError::UnresolvedReference(_))
     ));
 }
@@ -410,11 +581,20 @@ fn lo_no_soportado_se_reporta_en_vez_de_aproximarse() {
     // booleano contra algo que no es una caja
     let perfil = k
         .profile_from_polygon(
-            &[DVec2::ZERO, DVec2::new(10.0, 0.0), DVec2::new(5.0, 8.0)], f(),
+            &[DVec2::ZERO, DVec2::new(10.0, 0.0), DVec2::new(5.0, 8.0)],
+            f(),
         )
         .unwrap();
     let prisma = k
-        .extrude(perfil, ExtrudeOpts { direction: DVec3::Z, distance_mm: 3.0, symmetric: false }, f())
+        .extrude(
+            perfil,
+            ExtrudeOpts {
+                direction: DVec3::Z,
+                distance_mm: 3.0,
+                symmetric: false,
+            },
+            f(),
+        )
         .unwrap();
     let caja = k.box_solid(DVec3::ZERO, DVec3::ONE, f()).unwrap();
     assert!(matches!(
@@ -437,8 +617,14 @@ fn lo_no_soportado_se_reporta_en_vez_de_aproximarse() {
     );
 
     // STEP no esta implementado y lo dice
-    assert!(matches!(k.import_step(b"ISO-10303", f()), Err(KernelError::Unsupported("import_step"))));
-    assert!(matches!(k.export_step(&[caja]), Err(KernelError::Unsupported("export_step"))));
+    assert!(matches!(
+        k.import_step(b"ISO-10303", f()),
+        Err(KernelError::Unsupported("import_step"))
+    ));
+    assert!(matches!(
+        k.export_step(&[caja]),
+        Err(KernelError::Unsupported("export_step"))
+    ));
 }
 
 /// Control positivo de `Tessellation::validate`: si no detectara nada, todos
@@ -449,26 +635,42 @@ fn validate_detecta_teselados_mal_formados() {
         positions: vec![DVec3::ZERO, DVec3::X, DVec3::Y],
         normals: vec![DVec3::Z; 3],
         indices: vec![0, 1, 2],
-        face_of_triangle: vec![StableId { origin: f(), class: forge_doc::TopoClass::Face, mark: 1 }],
+        face_of_triangle: vec![StableId {
+            origin: f(),
+            class: forge_doc::TopoClass::Face,
+            mark: 1,
+        }],
         ..Default::default()
     };
     assert!(base.validate().is_ok());
 
     let mut sin_procedencia = base.clone();
     sin_procedencia.face_of_triangle.clear();
-    assert!(sin_procedencia.validate().is_err(), "no detecto procedencia incompleta");
+    assert!(
+        sin_procedencia.validate().is_err(),
+        "no detecto procedencia incompleta"
+    );
 
     let mut indices_sueltos = base.clone();
     indices_sueltos.indices = vec![0, 1];
-    assert!(indices_sueltos.validate().is_err(), "no detecto indices no multiplo de 3");
+    assert!(
+        indices_sueltos.validate().is_err(),
+        "no detecto indices no multiplo de 3"
+    );
 
     let mut fuera = base.clone();
     fuera.indices = vec![0, 1, 42];
-    assert!(fuera.validate().is_err(), "no detecto indice fuera de rango");
+    assert!(
+        fuera.validate().is_err(),
+        "no detecto indice fuera de rango"
+    );
 
     let mut normales = base.clone();
     normales.normals.pop();
-    assert!(normales.validate().is_err(), "no detecto normales descuadradas");
+    assert!(
+        normales.validate().is_err(),
+        "no detecto normales descuadradas"
+    );
 }
 
 /// Control positivo de `is_valid`: un sólido con las caras al revés tiene que
@@ -477,5 +679,8 @@ fn validate_detecta_teselados_mal_formados() {
 fn is_valid_detecta_solidos_mal_formados() {
     let k = k();
     let r = k.box_solid(DVec3::splat(10.0), DVec3::ZERO, f());
-    assert!(r.is_err(), "una caja invertida deberia rechazarse al construirla");
+    assert!(
+        r.is_err(),
+        "una caja invertida deberia rechazarse al construirla"
+    );
 }

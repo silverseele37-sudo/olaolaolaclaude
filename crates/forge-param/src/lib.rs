@@ -60,7 +60,11 @@ pub enum ParamError {
     #[error("el nodo {0} esta suprimido y no tiene entrada por la que pasar")]
     SuprimidoSinEntrada(FeatureId),
     #[error("el nodo {nodo} no pudo re-vincular {rotas} de {total} referencias; el arbol no se evalua con referencias rotas")]
-    ReferenciaRota { nodo: FeatureId, rotas: usize, total: usize },
+    ReferenciaRota {
+        nodo: FeatureId,
+        rotas: usize,
+        total: usize,
+    },
     #[error("el sketch {0} no converge o su perfil es degenerado: {1}")]
     SketchInvalido(FeatureId, String),
     #[error(transparent)]

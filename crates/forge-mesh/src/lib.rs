@@ -38,9 +38,15 @@ pub enum MeshError {
     #[error("malla corrupta: {0}")]
     Corrupta(String),
     #[error("el modificador `{modificador}` fallo: {detalle}")]
-    Modificador { modificador: &'static str, detalle: String },
+    Modificador {
+        modificador: &'static str,
+        detalle: String,
+    },
     #[error("parametro invalido en `{modificador}`: {detalle}")]
-    Parametro { modificador: &'static str, detalle: String },
+    Parametro {
+        modificador: &'static str,
+        detalle: String,
+    },
     #[error(
         "el modificador `{0}` perdio procedencia en {1} de {2} caras. \
          Todo modificador debe propagarla a la geometria que crea: sin eso, una \
@@ -65,7 +71,8 @@ pub type Result<T> = std::result::Result<T, MeshError>;
 /// Lo que sí cruza intacto es la **identidad**: cada triángulo llega etiquetado
 /// con el `StableId` de la cara que lo originó.
 pub fn to_mesh(t: &Tessellation) -> Result<Mesh> {
-    t.validate().map_err(|e| MeshError::Corrupta(e.to_string()))?;
+    t.validate()
+        .map_err(|e| MeshError::Corrupta(e.to_string()))?;
 
     let mut m = Mesh {
         positions: t.positions.clone(),
@@ -75,7 +82,9 @@ pub fn to_mesh(t: &Tessellation) -> Result<Mesh> {
         prov: ProvenanceMap::con_capacidad(0),
     };
     for (i, tri) in t.indices.chunks_exact(3).enumerate() {
-        m.faces.push(Face { verts: vec![tri[0], tri[1], tri[2]] });
+        m.faces.push(Face {
+            verts: vec![tri[0], tri[1], tri[2]],
+        });
         m.prov.face_origin.push(t.face_of(i));
     }
     // El teselado trae vértices duplicados por cara —para no promediar normales
@@ -127,10 +136,17 @@ pub(crate) fn soldar_conservando_procedencia(m: &Mesh, epsilon: f64) -> Result<M
             continue;
         }
         faces.push(Face { verts: vs });
-        prov.face_origin.push(m.prov.face_origin.get(fi).copied().flatten());
+        prov.face_origin
+            .push(m.prov.face_origin.get(fi).copied().flatten());
     }
 
-    Ok(Mesh { positions: posiciones, normals: normales, uvs: Vec::new(), faces, prov })
+    Ok(Mesh {
+        positions: posiciones,
+        normals: normales,
+        uvs: Vec::new(),
+        faces,
+        prov,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +190,10 @@ pub fn tasa_de_revinculacion(seleccion: &[StableId], nueva: &Mesh) -> f64 {
     if seleccion.is_empty() {
         return 1.0;
     }
-    let vivos = rebind(seleccion, nueva).iter().filter(|r| !r.binding.is_broken()).count();
+    let vivos = rebind(seleccion, nueva)
+        .iter()
+        .filter(|r| !r.binding.is_broken())
+        .count();
     vivos as f64 / seleccion.len() as f64
 }
 
@@ -187,11 +206,22 @@ pub fn cubo(l: f64, origen: forge_doc::FeatureId) -> Mesh {
     let h = l * 0.5;
     let p = |x: f64, y: f64, z: f64| DVec3::new(x * h, y * h, z * h);
     let positions = vec![
-        p(-1.0, -1.0, -1.0), p(1.0, -1.0, -1.0), p(1.0, 1.0, -1.0), p(-1.0, 1.0, -1.0),
-        p(-1.0, -1.0, 1.0), p(1.0, -1.0, 1.0), p(1.0, 1.0, 1.0), p(-1.0, 1.0, 1.0),
+        p(-1.0, -1.0, -1.0),
+        p(1.0, -1.0, -1.0),
+        p(1.0, 1.0, -1.0),
+        p(-1.0, 1.0, -1.0),
+        p(-1.0, -1.0, 1.0),
+        p(1.0, -1.0, 1.0),
+        p(1.0, 1.0, 1.0),
+        p(-1.0, 1.0, 1.0),
     ];
     let bucles: [[u32; 4]; 6] = [
-        [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [0, 4, 7, 3],
+        [0, 3, 2, 1],
+        [4, 5, 6, 7],
+        [0, 1, 5, 4],
+        [2, 3, 7, 6],
+        [1, 2, 6, 5],
+        [0, 4, 7, 3],
     ];
     let faces: Vec<Face> = bucles.iter().map(|b| Face { verts: b.to_vec() }).collect();
     let prov = ProvenanceMap {
@@ -205,5 +235,11 @@ pub fn cubo(l: f64, origen: forge_doc::FeatureId) -> Mesh {
             })
             .collect(),
     };
-    Mesh { positions, normals: Vec::new(), uvs: Vec::new(), faces, prov }
+    Mesh {
+        positions,
+        normals: Vec::new(),
+        uvs: Vec::new(),
+        faces,
+        prov,
+    }
 }

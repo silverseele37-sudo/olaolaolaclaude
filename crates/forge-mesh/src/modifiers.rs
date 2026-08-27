@@ -39,9 +39,18 @@ pub fn verificar_propagacion(kind: &'static str, entrada: &Mesh, salida: &Mesh) 
     if entrada.prov.cobertura() < 1.0 {
         return Ok(());
     }
-    let perdidas = salida.prov.face_origin.iter().filter(|o| o.is_none()).count();
+    let perdidas = salida
+        .prov
+        .face_origin
+        .iter()
+        .filter(|o| o.is_none())
+        .count();
     if perdidas > 0 {
-        return Err(MeshError::ProcedenciaPerdida(kind, perdidas, salida.faces.len()));
+        return Err(MeshError::ProcedenciaPerdida(
+            kind,
+            perdidas,
+            salida.faces.len(),
+        ));
     }
     Ok(())
 }
@@ -170,7 +179,11 @@ impl Subdivide {
             let nuevo = if bordes.len() >= 2 {
                 // Regla de borde: (v_prev + 6·v + v_next) / 8. Mantiene la
                 // curva del borde en vez de arrastrarla hacia el interior.
-                let s: DVec3 = bordes.iter().take(2).map(|&w| m.positions[w as usize]).sum();
+                let s: DVec3 = bordes
+                    .iter()
+                    .take(2)
+                    .map(|&w| m.positions[w as usize])
+                    .sum();
                 (p * 6.0 + s) / 8.0
             } else {
                 let caras = &ady.vertex_faces[v as usize];
@@ -217,11 +230,18 @@ impl Subdivide {
                 // Los cuatro cuadriláteros heredan la procedencia de la cara
                 // que los originó. Esta línea es la que hace que una selección
                 // sobreviva a la subdivisión.
-                prov.face_origin.push(m.prov.face_origin.get(fi).copied().flatten());
+                prov.face_origin
+                    .push(m.prov.face_origin.get(fi).copied().flatten());
             }
         }
 
-        Ok(Mesh { positions, normals: Vec::new(), uvs: Vec::new(), faces, prov })
+        Ok(Mesh {
+            positions,
+            normals: Vec::new(),
+            uvs: Vec::new(),
+            faces,
+            prov,
+        })
     }
 }
 
@@ -236,7 +256,10 @@ impl Modifier for Subdivide {
         if self.niveles > 6 {
             return Err(MeshError::Parametro {
                 modificador: "subdivide",
-                detalle: format!("{} niveles multiplicaria las caras por 4^{}", self.niveles, self.niveles),
+                detalle: format!(
+                    "{} niveles multiplicaria las caras por 4^{}",
+                    self.niveles, self.niveles
+                ),
             });
         }
         let mut m = input.clone();
@@ -265,8 +288,12 @@ impl Modifier for Mirror {
     }
     fn params_hash(&self) -> u64 {
         hash_f64(&[
-            self.punto.x, self.punto.y, self.punto.z,
-            self.normal.x, self.normal.y, self.normal.z,
+            self.punto.x,
+            self.punto.y,
+            self.punto.z,
+            self.normal.x,
+            self.normal.y,
+            self.normal.z,
             self.soldar_costura as u8 as f64,
         ])
     }
@@ -295,7 +322,9 @@ impl Modifier for Mirror {
             let mut vs: Vec<u32> = f.verts.iter().rev().map(|&v| v + base).collect();
             vs.rotate_right(1);
             m.faces.push(Face { verts: vs });
-            m.prov.face_origin.push(input.prov.face_origin.get(fi).copied().flatten());
+            m.prov
+                .face_origin
+                .push(input.prov.face_origin.get(fi).copied().flatten());
         }
         if self.soldar_costura {
             soldar_conservando_procedencia(&m, forge_math::tol::CONFUSION_MM * 10.0)
@@ -340,8 +369,12 @@ impl Modifier for Array {
             m.positions.extend(input.positions.iter().map(|p| *p + d));
             m.normals.extend(input.normals.iter().copied());
             for (fi, f) in input.faces.iter().enumerate() {
-                m.faces.push(Face { verts: f.verts.iter().map(|&v| v + k * nv).collect() });
-                m.prov.face_origin.push(input.prov.face_origin.get(fi).copied().flatten());
+                m.faces.push(Face {
+                    verts: f.verts.iter().map(|&v| v + k * nv).collect(),
+                });
+                m.prov
+                    .face_origin
+                    .push(input.prov.face_origin.get(fi).copied().flatten());
             }
         }
         Ok(m)
@@ -394,7 +427,9 @@ impl Modifier for Triangulate {
         for (fi, f) in input.faces.iter().enumerate() {
             let origen = input.prov.face_origin.get(fi).copied().flatten();
             for k in 1..f.verts.len() - 1 {
-                m.faces.push(Face { verts: vec![f.verts[0], f.verts[k], f.verts[k + 1]] });
+                m.faces.push(Face {
+                    verts: vec![f.verts[0], f.verts[k], f.verts[k + 1]],
+                });
                 m.prov.face_origin.push(origen);
             }
         }

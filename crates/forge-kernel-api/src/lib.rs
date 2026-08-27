@@ -86,7 +86,10 @@ pub struct TessellationParams {
 
 impl Default for TessellationParams {
     fn default() -> Self {
-        TessellationParams { chord_mm: 0.05, angular_deg: 15.0 }
+        TessellationParams {
+            chord_mm: 0.05,
+            angular_deg: 15.0,
+        }
     }
 }
 
@@ -345,21 +348,61 @@ pub trait GeometryKernel: Send + Sync {
 
     // --- construcción ---
     /// Perfil cerrado en el plano Z=0, en orden antihorario.
-    fn profile_from_polygon(&self, pts: &[forge_math::DVec2], owner: FeatureId)
-        -> KernelResult<ShapeId>;
-    fn extrude(&self, profile: ShapeId, opts: ExtrudeOpts, owner: FeatureId) -> KernelResult<ShapeId>;
-    fn revolve(&self, profile: ShapeId, opts: RevolveOpts, owner: FeatureId) -> KernelResult<ShapeId>;
+    fn profile_from_polygon(
+        &self,
+        pts: &[forge_math::DVec2],
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
+    fn extrude(
+        &self,
+        profile: ShapeId,
+        opts: ExtrudeOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
+    fn revolve(
+        &self,
+        profile: ShapeId,
+        opts: RevolveOpts,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
     fn box_solid(&self, min: DVec3, max: DVec3, owner: FeatureId) -> KernelResult<ShapeId>;
-    fn cylinder(&self, base: DVec3, axis: DVec3, radius_mm: f64, height_mm: f64, owner: FeatureId)
-        -> KernelResult<ShapeId>;
+    fn cylinder(
+        &self,
+        base: DVec3,
+        axis: DVec3,
+        radius_mm: f64,
+        height_mm: f64,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
 
     // --- modificación ---
-    fn fillet(&self, solid: ShapeId, edges: &[StableId], spec: FilletSpec, owner: FeatureId)
-        -> KernelResult<ShapeId>;
-    fn chamfer(&self, solid: ShapeId, edges: &[StableId], spec: ChamferSpec, owner: FeatureId)
-        -> KernelResult<ShapeId>;
-    fn boolean(&self, op: BoolOp, a: ShapeId, b: ShapeId, owner: FeatureId) -> KernelResult<ShapeId>;
-    fn transform(&self, s: ShapeId, m: &forge_math::DAffine3, owner: FeatureId) -> KernelResult<ShapeId>;
+    fn fillet(
+        &self,
+        solid: ShapeId,
+        edges: &[StableId],
+        spec: FilletSpec,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
+    fn chamfer(
+        &self,
+        solid: ShapeId,
+        edges: &[StableId],
+        spec: ChamferSpec,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
+    fn boolean(
+        &self,
+        op: BoolOp,
+        a: ShapeId,
+        b: ShapeId,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
+    fn transform(
+        &self,
+        s: ShapeId,
+        m: &forge_math::DAffine3,
+        owner: FeatureId,
+    ) -> KernelResult<ShapeId>;
 
     // --- consulta ---
     fn topology(&self, s: ShapeId) -> KernelResult<TopologySummary>;

@@ -133,7 +133,11 @@ mod tests {
     /// Respuesta conocida: arriba en FORGE tiene que ser arriba en glTF.
     #[test]
     fn arriba_sigue_siendo_arriba_al_convertir() {
-        assert_eq!(z_up_to_y_up(DVec3::Z), DVec3::Y, "el eje vertical no se preservo");
+        assert_eq!(
+            z_up_to_y_up(DVec3::Z),
+            DVec3::Y,
+            "el eje vertical no se preservo"
+        );
         assert_eq!(y_up_to_z_up(DVec3::Y), DVec3::Z);
         // el eje X no se toca: es el que comparten las dos convenciones
         assert_eq!(z_up_to_y_up(DVec3::X), DVec3::X);
@@ -142,7 +146,9 @@ mod tests {
     #[test]
     fn la_conversion_de_ejes_es_una_ida_y_vuelta_exacta() {
         for v in [
-            DVec3::X, DVec3::Y, DVec3::Z,
+            DVec3::X,
+            DVec3::Y,
+            DVec3::Z,
             DVec3::new(1.0, -2.0, 3.0),
             DVec3::new(-1e6, 1e-6, 0.0),
         ] {
@@ -161,7 +167,10 @@ mod tests {
         let antes = a.cross(b).dot(c);
         let despues = z_up_to_y_up(a).cross(z_up_to_y_up(b)).dot(z_up_to_y_up(c));
         assert_eq!(antes, 1.0);
-        assert_eq!(despues, 1.0, "la conversion espeja: las caras saldrian invertidas");
+        assert_eq!(
+            despues, 1.0,
+            "la conversion espeja: las caras saldrian invertidas"
+        );
     }
 
     #[test]

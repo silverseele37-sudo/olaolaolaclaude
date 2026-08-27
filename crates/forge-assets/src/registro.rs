@@ -55,13 +55,31 @@ pub enum Registro {
     /// un contenido que ya era una versión conocida).
     Vigente { id: String, version: u64, ts: i64 },
     /// Metadatos nuevos, mismo contenido.
-    Meta { id: String, meta: AssetMeta, ts: i64 },
+    Meta {
+        id: String,
+        meta: AssetMeta,
+        ts: i64,
+    },
     /// `pon = true` etiqueta, `false` desetiqueta.
-    Etiqueta { id: String, etiqueta: String, pon: bool, ts: i64 },
+    Etiqueta {
+        id: String,
+        etiqueta: String,
+        pon: bool,
+        ts: i64,
+    },
     /// Hash de la miniatura. `None` la quita. Nunca la imagen: solo el hash.
-    Miniatura { id: String, hash: Option<String>, ts: i64 },
+    Miniatura {
+        id: String,
+        hash: Option<String>,
+        ts: i64,
+    },
     /// Arista dirigida `de -> a` ("de depende de a"). `pon = false` la quita.
-    Dependencia { de: String, a: String, pon: bool, ts: i64 },
+    Dependencia {
+        de: String,
+        a: String,
+        pon: bool,
+        ts: i64,
+    },
     /// Baja del activo. Sus blobs quedan huérfanos hasta el próximo `gc`.
     Borrado { id: String, ts: i64 },
 }
@@ -96,7 +114,12 @@ impl Diario {
             .open(&ruta)
             .map_err(|e| AssetError::io(&ruta, e))?;
         let offset = f.metadata().map_err(|e| AssetError::io(&ruta, e))?.len();
-        Ok(Diario { ruta, f, offset, durabilidad: Durability::default() })
+        Ok(Diario {
+            ruta,
+            f,
+            offset,
+            durabilidad: Durability::default(),
+        })
     }
 
     /// Bytes escritos hasta ahora. El índice guarda este número para saber, en
@@ -106,12 +129,16 @@ impl Diario {
     }
 
     pub fn append(&mut self, r: &Registro) -> Result<()> {
-        let mut linea = serde_json::to_string(r)
-            .map_err(|e| AssetError::RegistroIlegible(e.to_string()))?;
+        let mut linea =
+            serde_json::to_string(r).map_err(|e| AssetError::RegistroIlegible(e.to_string()))?;
         linea.push('\n');
-        self.f.write_all(linea.as_bytes()).map_err(|e| AssetError::io(&self.ruta, e))?;
+        self.f
+            .write_all(linea.as_bytes())
+            .map_err(|e| AssetError::io(&self.ruta, e))?;
         if self.durabilidad == Durability::PerWrite {
-            self.f.sync_data().map_err(|e| AssetError::io(&self.ruta, e))?;
+            self.f
+                .sync_data()
+                .map_err(|e| AssetError::io(&self.ruta, e))?;
         }
         self.offset += linea.len() as u64;
         Ok(())
@@ -120,9 +147,11 @@ impl Diario {
     /// Lee desde `desde` hasta el final. Solo consume líneas completas.
     pub fn leer_desde(&self, desde: u64) -> Result<Lectura> {
         let mut f = File::open(&self.ruta).map_err(|e| AssetError::io(&self.ruta, e))?;
-        f.seek(SeekFrom::Start(desde)).map_err(|e| AssetError::io(&self.ruta, e))?;
+        f.seek(SeekFrom::Start(desde))
+            .map_err(|e| AssetError::io(&self.ruta, e))?;
         let mut buf = Vec::new();
-        f.read_to_end(&mut buf).map_err(|e| AssetError::io(&self.ruta, e))?;
+        f.read_to_end(&mut buf)
+            .map_err(|e| AssetError::io(&self.ruta, e))?;
 
         let mut registros = Vec::new();
         let mut ilegibles = 0;

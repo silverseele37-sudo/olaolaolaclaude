@@ -56,7 +56,10 @@ fn un_script_crea_tres_entidades() {
     xs.sort_by(f64::total_cmp);
     assert_eq!(xs, [10.0, 20.0, 30.0]);
 
-    let ocultas = ids.iter().filter(|e| s.get::<Visible>(**e) == Some(&Visible(false))).count();
+    let ocultas = ids
+        .iter()
+        .filter(|e| s.get::<Visible>(**e) == Some(&Visible(false)))
+        .count();
     assert_eq!(ocultas, 1, "solo el cubo 2 debía quedar oculto");
 }
 
@@ -82,7 +85,11 @@ fn una_macro_agrupada_se_deshace_de_una_vez() {
     assert_eq!(doc.snapshot().entity_count(), 3);
 
     bus.apply(&mut doc, Command::Undo).unwrap();
-    assert_eq!(doc.snapshot().fingerprint(), inicial, "la macro no era una sola entrada de undo");
+    assert_eq!(
+        doc.snapshot().fingerprint(),
+        inicial,
+        "la macro no era una sola entrada de undo"
+    );
 }
 
 /// El log grabado desde Lua es un log como cualquier otro: se reproduce y da la
@@ -118,7 +125,11 @@ fn lo_que_hace_un_script_se_reproduce_desde_el_log() {
 
 #[test]
 fn un_bucle_infinito_se_corta_por_instrucciones() {
-    let h = LuaHost::new(Limits { max_instrucciones: 100_000, ..Limits::default() }).unwrap();
+    let h = LuaHost::new(Limits {
+        max_instrucciones: 100_000,
+        ..Limits::default()
+    })
+    .unwrap();
     let mut doc = Document::new();
     let mut bus = CommandBus::new();
 
@@ -129,7 +140,10 @@ fn un_bucle_infinito_se_corta_por_instrucciones() {
         matches!(err, ScriptError::LimiteDeInstrucciones { limite: 100_000 }),
         "se cortó por otra razón: {err}"
     );
-    assert!(err.to_string().contains("revisa el bucle"), "el error no dice qué hacer");
+    assert!(
+        err.to_string().contains("revisa el bucle"),
+        "el error no dice qué hacer"
+    );
 }
 
 /// Control positivo del límite: sin él, el test de arriba pasaría igual si el
@@ -142,7 +156,11 @@ fn el_limite_de_instrucciones_esta_conectado_de_verdad() {
     let mut bus = CommandBus::new();
     let script = "local s = 0 for i = 1, 200000 do s = s + i end";
 
-    let apretado = LuaHost::new(Limits { max_instrucciones: 10_000, ..Limits::default() }).unwrap();
+    let apretado = LuaHost::new(Limits {
+        max_instrucciones: 10_000,
+        ..Limits::default()
+    })
+    .unwrap();
     assert!(
         matches!(
             apretado.run(&mut doc, &mut bus, script),
@@ -152,7 +170,9 @@ fn el_limite_de_instrucciones_esta_conectado_de_verdad() {
     );
 
     let holgado = LuaHost::new(Limits::default()).unwrap();
-    holgado.run(&mut doc, &mut bus, script).expect("con presupuesto holgado debía terminar");
+    holgado
+        .run(&mut doc, &mut bus, script)
+        .expect("con presupuesto holgado debía terminar");
     assert!(
         holgado.instrucciones_usadas() > 10_000,
         "el contador dice {} instrucciones: el hook no se está ejecutando",
@@ -171,7 +191,11 @@ fn un_script_que_devora_memoria_se_corta() {
     let mut bus = CommandBus::new();
 
     let err = h
-        .run(&mut doc, &mut bus, "local t = {} local i = 1 while true do t[i] = i i = i + 1 end")
+        .run(
+            &mut doc,
+            &mut bus,
+            "local t = {} local i = 1 while true do t[i] = i i = i + 1 end",
+        )
         .expect_err("debía cortarse");
     assert!(
         matches!(err, ScriptError::LimiteDeMemoria { .. }),
@@ -183,7 +207,11 @@ fn un_script_que_devora_memoria_se_corta() {
 /// pierde trabajo confirmado ni aparece trabajo a medias.
 #[test]
 fn el_corte_no_deja_el_documento_a_medias() {
-    let h = LuaHost::new(Limits { max_instrucciones: 200_000, ..Limits::default() }).unwrap();
+    let h = LuaHost::new(Limits {
+        max_instrucciones: 200_000,
+        ..Limits::default()
+    })
+    .unwrap();
     let mut doc = Document::new();
     let mut bus = CommandBus::new();
 
@@ -195,7 +223,11 @@ fn el_corte_no_deja_el_documento_a_medias() {
         while true do end
         "#,
     );
-    assert_eq!(doc.snapshot().entity_count(), 1, "el corte perdió o duplicó trabajo confirmado");
+    assert_eq!(
+        doc.snapshot().entity_count(),
+        1,
+        "el corte perdió o duplicó trabajo confirmado"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -247,7 +279,9 @@ fn un_id_mal_formado_es_un_error_con_instrucciones() {
     let mut doc = Document::new();
     let mut bus = CommandBus::new();
 
-    let err = h.run(&mut doc, &mut bus, "forge.set_name('no-soy-un-id', 'x')").unwrap_err();
+    let err = h
+        .run(&mut doc, &mut bus, "forge.set_name('no-soy-un-id', 'x')")
+        .unwrap_err();
     assert!(err.to_string().contains("forge.spawn()"), "{err}");
     assert_eq!(doc.snapshot().entity_count(), 0);
 }
@@ -264,7 +298,11 @@ fn el_script_no_puede_guardarse_la_tabla_forge_para_luego() {
     h.run(&mut doc, &mut bus, "guardada = forge.spawn").unwrap();
     let err = h.run(&mut doc, &mut bus, "guardada('tarde')").unwrap_err();
     assert!(matches!(err, ScriptError::Lua(_)), "{err}");
-    assert_eq!(doc.snapshot().entity_count(), 0, "la función caducada llegó a crear algo");
+    assert_eq!(
+        doc.snapshot().entity_count(),
+        0,
+        "la función caducada llegó a crear algo"
+    );
 }
 
 /// Un script que abre un grupo y no lo cierra no aplica nada, y `finish` lo
@@ -275,7 +313,15 @@ fn un_script_que_no_cierra_su_grupo_no_aplica_nada() {
     let mut doc = Document::new();
     let mut bus = CommandBus::new();
 
-    h.run(&mut doc, &mut bus, "forge.begin_group('a medias') forge.spawn('perdida')").unwrap();
+    h.run(
+        &mut doc,
+        &mut bus,
+        "forge.begin_group('a medias') forge.spawn('perdida')",
+    )
+    .unwrap();
     assert_eq!(doc.snapshot().entity_count(), 0);
-    assert_eq!(bus.finish().unwrap_err(), CommandError::GrupoSinCerrar("a medias".into()));
+    assert_eq!(
+        bus.finish().unwrap_err(),
+        CommandError::GrupoSinCerrar("a medias".into())
+    );
 }

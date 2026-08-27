@@ -176,7 +176,10 @@ pub struct FsBlobStore {
 impl FsBlobStore {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
-        std::fs::create_dir_all(&root).map_err(|e| StoreError::Io { path: root.clone(), source: e })?;
+        std::fs::create_dir_all(&root).map_err(|e| StoreError::Io {
+            path: root.clone(),
+            source: e,
+        })?;
         Ok(FsBlobStore { root })
     }
 
@@ -212,17 +215,26 @@ impl BlobStore for FsBlobStore {
             return Ok(h); // inmutable: escribir lo mismo otra vez es un no-op
         }
         let dir = dst.parent().unwrap();
-        std::fs::create_dir_all(dir).map_err(|e| StoreError::Io { path: dir.into(), source: e })?;
+        std::fs::create_dir_all(dir).map_err(|e| StoreError::Io {
+            path: dir.into(),
+            source: e,
+        })?;
 
         // Temporal en el MISMO directorio, para que el rename sea dentro del
         // mismo sistema de archivos y por tanto atómico.
         let tmp = dir.join(format!(".{}.tmp", h.to_hex()));
-        std::fs::write(&tmp, bytes).map_err(|e| StoreError::Io { path: tmp.clone(), source: e })?;
+        std::fs::write(&tmp, bytes).map_err(|e| StoreError::Io {
+            path: tmp.clone(),
+            source: e,
+        })?;
         match std::fs::rename(&tmp, &dst) {
             Ok(()) => Ok(h),
             Err(e) => {
                 let _ = std::fs::remove_file(&tmp);
-                Err(StoreError::Io { path: dst, source: e })
+                Err(StoreError::Io {
+                    path: dst,
+                    source: e,
+                })
             }
         }
     }
@@ -245,13 +257,22 @@ impl BlobStore for FsBlobStore {
         let rd = match std::fs::read_dir(&self.root) {
             Ok(rd) => rd,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
-            Err(e) => return Err(StoreError::Io { path: self.root.clone(), source: e }),
+            Err(e) => {
+                return Err(StoreError::Io {
+                    path: self.root.clone(),
+                    source: e,
+                })
+            }
         };
         for shard in rd.flatten() {
             if !shard.path().is_dir() {
                 continue;
             }
-            for f in std::fs::read_dir(shard.path()).into_iter().flatten().flatten() {
+            for f in std::fs::read_dir(shard.path())
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
                 if let Some(name) = f.file_name().to_str() {
                     // Los temporales empiezan por punto y no son blobs.
                     if let Ok(h) = BlobHash::from_hex(name) {
@@ -295,7 +316,11 @@ mod tests {
         assert!(s.has(b).unwrap());
         assert!(!s.has(BlobHash::of(b"jamas escrito")).unwrap());
         assert!(s.get(BlobHash::of(b"jamas escrito")).unwrap().is_none());
-        assert_eq!(s.list().unwrap(), { let mut v = vec![a, b]; v.sort(); v });
+        assert_eq!(s.list().unwrap(), {
+            let mut v = vec![a, b];
+            v.sort();
+            v
+        });
     }
 
     #[test]
@@ -357,7 +382,11 @@ mod tests {
 
         let p = d.path().join(h.shard()).join(h.to_hex());
         std::fs::write(&p, b"contenido adulterado").unwrap();
-        assert_eq!(s.verify().unwrap(), vec![h], "verify no detecto la corrupcion");
+        assert_eq!(
+            s.verify().unwrap(),
+            vec![h],
+            "verify no detecto la corrupcion"
+        );
     }
 
     #[test]

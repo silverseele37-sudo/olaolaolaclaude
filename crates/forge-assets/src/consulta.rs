@@ -240,6 +240,9 @@ mod tests {
         assert_eq!(a_i64_saturado(i64::MAX as u64 + 1), i64::MAX);
         // el bug que esto evita, hecho explicito
         assert_eq!(u64::MAX as i64, -1, "asi envolveria un `as` a secas");
-        assert!(a_i64_saturado(u64::MAX) > a_i64_saturado(0), "un rango abierto debe seguir siendo un rango");
+        assert!(
+            a_i64_saturado(u64::MAX) > a_i64_saturado(0),
+            "un rango abierto debe seguir siendo un rango"
+        );
     }
 }

@@ -57,7 +57,11 @@ pub mod tol {
 pub fn orthonormal_basis(n: DVec3) -> (DVec3, DVec3) {
     let n = n.normalize();
     // Semilla Z, con salto a X cuando n es (casi) paralela a Z.
-    let seed = if n.z.abs() >= 0.999 { DVec3::X } else { DVec3::Z };
+    let seed = if n.z.abs() >= 0.999 {
+        DVec3::X
+    } else {
+        DVec3::Z
+    };
     let t = seed.cross(n).normalize();
     let b = n.cross(t);
     (t, b)
@@ -123,7 +127,10 @@ impl Aabb {
 
     #[inline]
     pub fn extended(self, p: DVec3) -> Self {
-        Aabb { min: self.min.min(p), max: self.max.max(p) }
+        Aabb {
+            min: self.min.min(p),
+            max: self.max.max(p),
+        }
     }
 
     #[inline]
@@ -134,7 +141,10 @@ impl Aabb {
         if o.is_empty() {
             return self;
         }
-        Aabb { min: self.min.min(o.min), max: self.max.max(o.max) }
+        Aabb {
+            min: self.min.min(o.min),
+            max: self.max.max(o.max),
+        }
     }
 
     #[inline]
@@ -149,7 +159,11 @@ impl Aabb {
 
     #[inline]
     pub fn size(&self) -> DVec3 {
-        if self.is_empty() { DVec3::ZERO } else { self.max - self.min }
+        if self.is_empty() {
+            DVec3::ZERO
+        } else {
+            self.max - self.min
+        }
     }
 
     #[inline]
@@ -161,10 +175,14 @@ impl Aabb {
     pub fn corners(&self) -> [DVec3; 8] {
         let (a, b) = (self.min, self.max);
         [
-            DVec3::new(a.x, a.y, a.z), DVec3::new(b.x, a.y, a.z),
-            DVec3::new(a.x, b.y, a.z), DVec3::new(b.x, b.y, a.z),
-            DVec3::new(a.x, a.y, b.z), DVec3::new(b.x, a.y, b.z),
-            DVec3::new(a.x, b.y, b.z), DVec3::new(b.x, b.y, b.z),
+            DVec3::new(a.x, a.y, a.z),
+            DVec3::new(b.x, a.y, a.z),
+            DVec3::new(a.x, b.y, a.z),
+            DVec3::new(b.x, b.y, a.z),
+            DVec3::new(a.x, a.y, b.z),
+            DVec3::new(b.x, a.y, b.z),
+            DVec3::new(a.x, b.y, b.z),
+            DVec3::new(b.x, b.y, b.z),
         ]
     }
 
@@ -192,7 +210,11 @@ pub struct Transform {
 
 impl Default for Transform {
     fn default() -> Self {
-        Transform { translation: DVec3::ZERO, rotation: DQuat::IDENTITY, scale: DVec3::ONE }
+        Transform {
+            translation: DVec3::ZERO,
+            rotation: DQuat::IDENTITY,
+            scale: DVec3::ONE,
+        }
     }
 }
 
@@ -204,7 +226,10 @@ impl Transform {
     };
 
     pub fn from_translation(t: DVec3) -> Self {
-        Transform { translation: t, ..Default::default() }
+        Transform {
+            translation: t,
+            ..Default::default()
+        }
     }
 
     #[inline]
@@ -227,9 +252,12 @@ mod tests {
     #[test]
     fn base_ortonormal_es_finita_en_toda_direccion() {
         let mut casos = vec![
-            DVec3::X, -DVec3::X,
-            DVec3::Y, -DVec3::Y,   // el ecuador en Z-up: donde falla el codigo Y-up
-            DVec3::Z, -DVec3::Z,   // los polos en Z-up: donde falla la semilla Z sin guarda
+            DVec3::X,
+            -DVec3::X,
+            DVec3::Y,
+            -DVec3::Y, // el ecuador en Z-up: donde falla el codigo Y-up
+            DVec3::Z,
+            -DVec3::Z, // los polos en Z-up: donde falla la semilla Z sin guarda
             DVec3::new(1.0, 1.0, 1.0),
         ];
         // barrido denso de la esfera
@@ -251,13 +279,22 @@ mod tests {
             let (t, b) = orthonormal_basis(n);
             assert!(t.is_finite(), "tangente no finita para {n:?}");
             assert!(b.is_finite(), "bitangente no finita para {n:?}");
-            assert!((t.length() - 1.0).abs() < 1e-12, "tangente no unitaria para {n:?}");
-            assert!((b.length() - 1.0).abs() < 1e-12, "bitangente no unitaria para {n:?}");
+            assert!(
+                (t.length() - 1.0).abs() < 1e-12,
+                "tangente no unitaria para {n:?}"
+            );
+            assert!(
+                (b.length() - 1.0).abs() < 1e-12,
+                "bitangente no unitaria para {n:?}"
+            );
             assert!(t.dot(n).abs() < 1e-12, "t no perpendicular a n para {n:?}");
             assert!(b.dot(n).abs() < 1e-12, "b no perpendicular a n para {n:?}");
             assert!(t.dot(b).abs() < 1e-12, "t no perpendicular a b para {n:?}");
             // diestra: t x b == n
-            assert!((t.cross(b) - n).length() < 1e-12, "base no diestra para {n:?}");
+            assert!(
+                (t.cross(b) - n).length() < 1e-12,
+                "base no diestra para {n:?}"
+            );
         }
     }
 
@@ -283,7 +320,10 @@ mod tests {
         let h = 1000.0;
         let lejos = chord_deflection(1000.0, fov, h, 0.4);
         let cerca = chord_deflection(250.0, fov, h, 0.4);
-        assert!((lejos / cerca - 4.0).abs() < 1e-12, "debe ser lineal en la distancia");
+        assert!(
+            (lejos / cerca - 4.0).abs() < 1e-12,
+            "debe ser lineal en la distancia"
+        );
 
         // Contraste contra una constante elegida para la vista lejana:
         // a 4x de zoom el error de la constante es 4x el presupuesto.
@@ -304,7 +344,8 @@ mod tests {
     #[test]
     fn aabb_transformada_contiene_los_puntos_transformados() {
         let a = Aabb::new(DVec3::new(-1.0, -2.0, -3.0), DVec3::new(4.0, 5.0, 6.0));
-        let m = DAffine3::from_rotation_z(0.7) * DAffine3::from_translation(DVec3::new(10.0, 0.0, 0.0));
+        let m =
+            DAffine3::from_rotation_z(0.7) * DAffine3::from_translation(DVec3::new(10.0, 0.0, 0.0));
         let t = a.transformed(&m);
         for c in a.corners() {
             assert!(t.contains(m.transform_point3(c)));

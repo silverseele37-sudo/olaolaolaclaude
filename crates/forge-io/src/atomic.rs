@@ -95,7 +95,8 @@ mod tests {
         assert_eq!(leer(&p), "version 1");
 
         write_atomic(&p, |f| {
-            f.write_all(b"version 2 mas larga").map_err(|e| IoError::at(&p, e))
+            f.write_all(b"version 2 mas larga")
+                .map_err(|e| IoError::at(&p, e))
         })
         .unwrap();
         assert_eq!(leer(&p), "version 2 mas larga");
@@ -109,7 +110,8 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let p = d.path().join("doc.forge");
         write_atomic(&p, |f| {
-            f.write_all(b"contenido bueno").map_err(|e| IoError::at(&p, e))
+            f.write_all(b"contenido bueno")
+                .map_err(|e| IoError::at(&p, e))
         })
         .unwrap();
 
@@ -119,8 +121,15 @@ mod tests {
         });
 
         assert!(r.is_err(), "el fallo inyectado tiene que propagarse");
-        assert_eq!(leer(&p), "contenido bueno", "el archivo anterior se corrompio");
-        assert!(temporales_en(d.path()).is_empty(), "quedo un temporal huerfano");
+        assert_eq!(
+            leer(&p),
+            "contenido bueno",
+            "el archivo anterior se corrompio"
+        );
+        assert!(
+            temporales_en(d.path()).is_empty(),
+            "quedo un temporal huerfano"
+        );
     }
 
     /// Control: si el archivo no existía y la escritura falla, no debe quedar

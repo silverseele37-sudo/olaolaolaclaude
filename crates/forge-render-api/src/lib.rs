@@ -84,8 +84,17 @@ impl Camera {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Light {
-    Directional { direction: DVec3, color: [f32; 3], intensity: f32 },
-    Point { position: DVec3, color: [f32; 3], intensity: f32, radius_mm: f64 },
+    Directional {
+        direction: DVec3,
+        color: [f32; 3],
+        intensity: f32,
+    },
+    Point {
+        position: DVec3,
+        color: [f32; 3],
+        intensity: f32,
+        radius_mm: f64,
+    },
 }
 
 /// Iluminación basada en imagen.
