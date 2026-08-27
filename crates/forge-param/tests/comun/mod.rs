@@ -293,6 +293,34 @@ pub fn cara_mas_cercana(topo: &TopologySummary, de: DVec3) -> TopoEntity {
         .expect("la topologia no tiene caras")
 }
 
+/// La arista de `topo` cuyo centroide está más cerca de `de`. Simétrica de
+/// [`arista_mas_lejana`]; sirve de oráculo **independiente** del resolver en
+/// la suite de regresión: para comprobar que una `Rebound` apunta a la
+/// candidata geométricamente correcta hace falta un criterio de "correcto"
+/// que no sea la propia fórmula de `Resolver::parecido`, o el test no
+/// comprobaría nada que la implementación no pudiera fallar consigo misma.
+pub fn arista_mas_cercana(topo: &TopologySummary, de: DVec3) -> TopoEntity {
+    topo.edges
+        .iter()
+        .min_by(|a, b| {
+            let da = (centro_de(&a.signature) - de).length();
+            let db = (centro_de(&b.signature) - de).length();
+            da.partial_cmp(&db).unwrap()
+        })
+        .cloned()
+        .expect("la topologia no tiene aristas")
+}
+
+/// La cara de `topo` nacida directamente de una primitiva (caja o cilindro),
+/// por su índice de `TopoProvenance::Primitive`. Análogo a [`cara_lateral`]
+/// pero para las caras que no vienen de una extrusión.
+pub fn cara_primitiva(topo: &TopologySummary, indice: u32) -> Option<TopoEntity> {
+    topo.faces
+        .iter()
+        .find(|f| matches!(f.provenance, TopoProvenance::Primitive { index } if index == indice))
+        .cloned()
+}
+
 /// Evalúa `tree` (evaluador nuevo), toma la topología de la forma que produjo
 /// `entrada_id`, elige una entidad con `elegir`, y añade un nodo `Fillet` que
 /// la referencia. Es la simulación de "el usuario selecciona una arista en el
