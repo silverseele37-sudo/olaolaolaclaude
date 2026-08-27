@@ -1130,3 +1130,135 @@ fn intercambiar_y_deshacer_el_intercambio_recupera_la_genealogia_original() {
     );
     assert_eq!(r1.valor(), Some(ref_chamfer.objetivo));
 }
+
+// ---------------------------------------------------------------------------
+// Sección 5 — combinaciones. Medir cada tipo de edición por separado no basta:
+// un usuario real cambia varias cosas entre una regeneración y la siguiente.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn multiples_ediciones_de_cota_consecutivas_mantienen_estable_la_misma_referencia() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 5, 10.0, Plano::default(), DVec3::Z, 4.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let cara0 = cara_lateral(&topo0, 1).expect("cara lateral 1");
+    let referencia = TopoRef::capturar(extrude_id, &cara0);
+
+    for distancia in [7.0, 2.0, 15.0, 4.0, 9.5] {
+        set_distancia(&mut tree, extrude_id, distancia);
+        let topo = topologia_de(&k, &tree, extrude_id);
+        let resolucion = Resolver::default().resolver(&referencia, &topo);
+        assert!(
+            resolucion.exacta(),
+            "distancia={distancia}: salio {:?}",
+            resolucion.binding
+        );
+        assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+    }
+}
+
+#[test]
+fn editar_radio_y_altura_de_un_cilindro_a_la_vez_conserva_las_tres_caras() {
+    let k = kernel();
+    let cil_id = fid(1);
+    let mut tree = arbol_cilindro(cil_id, DVec3::ZERO, DVec3::Z, 8.0, 12.0);
+    let topo0 = topologia_de(&k, &tree, cil_id);
+    let referencias: Vec<_> = (0..3u32)
+        .map(|i| TopoRef::capturar(cil_id, &cara_primitiva(&topo0, i).unwrap()))
+        .collect();
+
+    set_cilindro(&mut tree, cil_id, DVec3::ZERO, DVec3::Z, 20.0, 3.0);
+    let topo1 = topologia_de(&k, &tree, cil_id);
+    for (i, referencia) in referencias.iter().enumerate() {
+        let resolucion = Resolver::default().resolver(referencia, &topo1);
+        assert!(
+            resolucion.exacta(),
+            "cara {i}: salio {:?}",
+            resolucion.binding
+        );
+        assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+    }
+}
+
+#[test]
+fn mover_el_sketch_y_cambiar_la_distancia_de_extrusion_a_la_vez_conserva_la_referencia() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 7, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let cara0 = cara_lateral(&topo0, 3).expect("cara lateral 3");
+    let referencia = TopoRef::capturar(extrude_id, &cara0);
+
+    if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+        s.plano = mover_plano(s.plano, DVec3::new(2.0, 5.0, -3.0), 0.7);
+    }
+    set_distancia(&mut tree, extrude_id, 13.0);
+
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    let resolucion = Resolver::default().resolver(&referencia, &topo1);
+    assert!(
+        resolucion.exacta(),
+        "se esperaba genealogia exacta, salio {:?}",
+        resolucion.binding
+    );
+    assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+}
+
+#[test]
+fn cambiar_ancho_y_alto_de_un_rectangulo_a_la_vez_conserva_sus_dos_caras_laterales() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let (mut tree, dim_ancho, dim_alto) =
+        arbol_extrude_rectangulo(sketch_id, extrude_id, 10.0, 6.0, Plano::default(), DVec3::Z, 4.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let ref0 = TopoRef::capturar(extrude_id, &cara_lateral(&topo0, 0).unwrap());
+    let ref1 = TopoRef::capturar(extrude_id, &cara_lateral(&topo0, 1).unwrap());
+
+    set_ancho(&mut tree, sketch_id, dim_ancho, 30.0);
+    if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+        assert!(s.modelo.set_dimension(dim_alto, 18.0), "dimension desconocida");
+    }
+
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    for (i, referencia) in [(0, &ref0), (1, &ref1)] {
+        let resolucion = Resolver::default().resolver(referencia, &topo1);
+        assert!(
+            resolucion.exacta(),
+            "cara {i}: salio {:?}",
+            resolucion.binding
+        );
+        assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+    }
+}
+
+#[test]
+fn un_poligono_de_diecisiete_lados_conserva_sus_referencias_bajo_un_cambio_de_cota() {
+    let k = kernel();
+    let sketch_id = fid(1);
+    let extrude_id = fid(2);
+    let mut tree =
+        arbol_extrude_poligono(sketch_id, extrude_id, 17, 10.0, Plano::default(), DVec3::Z, 5.0);
+    let topo0 = topologia_de(&k, &tree, extrude_id);
+    let referencias: Vec<_> = [0u32, 8, 16]
+        .iter()
+        .map(|&i| TopoRef::capturar(extrude_id, &cara_lateral(&topo0, i).unwrap()))
+        .collect();
+
+    set_distancia(&mut tree, extrude_id, 21.0);
+    let topo1 = topologia_de(&k, &tree, extrude_id);
+    for referencia in &referencias {
+        let resolucion = Resolver::default().resolver(referencia, &topo1);
+        assert!(
+            resolucion.exacta(),
+            "salio {:?}",
+            resolucion.binding
+        );
+        assert_eq!(resolucion.valor(), Some(referencia.objetivo));
+    }
+}
