@@ -1,0 +1,20 @@
+[package]
+name = "forge-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Visor interactivo de FORGE: extracción de escena, cámara orbital, selección y paneles egui."
+
+[dependencies]
+forge-math       = { workspace = true }
+forge-store      = { workspace = true }
+forge-doc        = { workspace = true }
+forge-render-api = { workspace = true }
+
+winit      = { workspace = true }
+egui       = { workspace = true }
+egui-wgpu  = { workspace = true }
+egui-winit = { workspace = true }
+png        = { workspace = true }
+thiserror  = { workspace = true }

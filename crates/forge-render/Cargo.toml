@@ -1,0 +1,22 @@
+[package]
+name = "forge-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Renderer wgpu: implementa el trait Renderer sobre GPU real (Vulkan/DX12/Metal)."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+forge-render-api = { workspace = true }
+wgpu = "30"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "1"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Solo para tests: parsear y validar el WGSL generado sin necesitar una GPU.
+# No afecta al guardia de arquitectura, que solo mira dependencias `forge-*`.
+naga = { version = "30", features = ["wgsl-in"] }

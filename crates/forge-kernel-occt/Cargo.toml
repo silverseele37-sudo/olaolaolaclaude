@@ -1,0 +1,16 @@
+[package]
+name = "forge-kernel-occt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Puente FFI a OpenCASCADE. Compila sin OCCT: ver build.rs y docs/construir-occt.md."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-doc = { workspace = true }
+forge-kernel-api = { workspace = true }
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"
