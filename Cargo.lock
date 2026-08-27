@@ -288,6 +288,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-mesh"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-kernel-api",
+ "forge-math",
+ "forge-store",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "forge-render-api"
 version = "0.1.0"
 dependencies = [

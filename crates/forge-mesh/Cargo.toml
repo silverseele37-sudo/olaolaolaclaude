@@ -1,0 +1,15 @@
+[package]
+name = "forge-mesh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pilar 2: malla poligonal editable y la frontera de dominio ToMesh."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+forge-kernel-api = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
