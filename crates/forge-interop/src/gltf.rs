@@ -314,7 +314,8 @@ pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
         });
     }
 
-    let leer_u32 = |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+    let leer_u32 =
+        |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
 
     if leer_u32(0) != GLB_MAGIC {
         return Err(InteropError::Malformed {
@@ -384,40 +385,48 @@ pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
     let buffer = &bytes[bin_start..bin_end];
 
     // Extraer accesores y bufferViews del JSON
-    let accessors = json["accessors"].as_array()
+    let accessors = json["accessors"]
+        .as_array()
         .ok_or_else(|| InteropError::Malformed {
             line: 0,
             detail: "accessors no es un array".into(),
         })?;
 
-    let buffer_views = json["bufferViews"].as_array()
+    let buffer_views = json["bufferViews"]
+        .as_array()
         .ok_or_else(|| InteropError::Malformed {
             line: 0,
             detail: "bufferViews no es un array".into(),
         })?;
 
     // Encontrar los índices de POSITION, NORMAL, TEXCOORD_0 e índices
-    let primitives = json["meshes"][0]["primitives"].as_array()
+    let primitives = json["meshes"][0]["primitives"]
+        .as_array()
         .and_then(|p| p.get(0))
         .ok_or_else(|| InteropError::InvalidMesh("no hay primitives".into()))?;
 
-    let attrs = primitives["attributes"].as_object()
+    let attrs = primitives["attributes"]
+        .as_object()
         .ok_or_else(|| InteropError::InvalidMesh("no hay attributes".into()))?;
 
-    let idx_accessor_idx = primitives["indices"].as_u64()
+    let idx_accessor_idx = primitives["indices"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("no hay índices".into()))?
         as usize;
 
-    let pos_idx = attrs.get("POSITION")
+    let pos_idx = attrs
+        .get("POSITION")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| InteropError::InvalidMesh("no hay POSITION".into()))?
         as usize;
 
-    let normal_idx = attrs.get("NORMAL")
+    let normal_idx = attrs
+        .get("NORMAL")
         .and_then(|v| v.as_u64())
         .map(|i| i as usize);
 
-    let uv_idx = attrs.get("TEXCOORD_0")
+    let uv_idx = attrs
+        .get("TEXCOORD_0")
         .and_then(|v| v.as_u64())
         .map(|i| i as usize);
 
@@ -442,7 +451,12 @@ pub fn read_glb(bytes: &[u8]) -> Result<TriangleSoup> {
     }
 
     // Leer índices
-    read_indices(&mut soup, buffer, &accessors[idx_accessor_idx], buffer_views)?;
+    read_indices(
+        &mut soup,
+        buffer,
+        &accessors[idx_accessor_idx],
+        buffer_views,
+    )?;
 
     soup.validate()?;
     Ok(soup)
@@ -455,24 +469,28 @@ fn read_positions(
     accessor: &Value,
     buffer_views: &[Value],
 ) -> Result<()> {
-    let buffer_view_idx = accessor["bufferView"].as_u64()
+    let buffer_view_idx = accessor["bufferView"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("POSITION sin bufferView".into()))?
         as usize;
 
-    let buffer_view = buffer_views.get(buffer_view_idx)
+    let buffer_view = buffer_views
+        .get(buffer_view_idx)
         .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
 
     let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let byte_length = buffer_view["byteLength"].as_u64()
+    let byte_length = buffer_view["byteLength"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
         as usize;
 
-    let component_type = accessor["componentType"].as_u64()
+    let component_type = accessor["componentType"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
 
-    let count = accessor["count"].as_u64()
-        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
-        as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))? as usize;
 
     if component_type != COMPONENT_FLOAT as u64 {
         return Err(InteropError::Unsupported("componentType no es float32"));
@@ -497,8 +515,10 @@ fn read_positions(
         }
 
         let x = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
-        let y = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
-        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]]) as f64;
+        let y =
+            f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]])
+            as f64;
 
         // Invertir conversiones: Y-up → Z-up, metros → milímetros
         let v = DVec3::new(x, y, z);
@@ -518,24 +538,28 @@ fn read_normals(
     accessor: &Value,
     buffer_views: &[Value],
 ) -> Result<()> {
-    let buffer_view_idx = accessor["bufferView"].as_u64()
+    let buffer_view_idx = accessor["bufferView"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("NORMAL sin bufferView".into()))?
         as usize;
 
-    let buffer_view = buffer_views.get(buffer_view_idx)
+    let buffer_view = buffer_views
+        .get(buffer_view_idx)
         .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
 
     let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let byte_length = buffer_view["byteLength"].as_u64()
+    let byte_length = buffer_view["byteLength"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
         as usize;
 
-    let component_type = accessor["componentType"].as_u64()
+    let component_type = accessor["componentType"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
 
-    let count = accessor["count"].as_u64()
-        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
-        as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))? as usize;
 
     if component_type != COMPONENT_FLOAT as u64 {
         return Err(InteropError::Unsupported("componentType no es float32"));
@@ -560,8 +584,10 @@ fn read_normals(
         }
 
         let x = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
-        let y = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
-        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]]) as f64;
+        let y =
+            f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+        let z = f32::from_le_bytes([data[off + 8], data[off + 9], data[off + 10], data[off + 11]])
+            as f64;
 
         // Invertir rotación: Y-up → Z-up
         let v = DVec3::new(x, y, z);
@@ -580,24 +606,28 @@ fn read_uvs(
     accessor: &Value,
     buffer_views: &[Value],
 ) -> Result<()> {
-    let buffer_view_idx = accessor["bufferView"].as_u64()
+    let buffer_view_idx = accessor["bufferView"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("TEXCOORD_0 sin bufferView".into()))?
         as usize;
 
-    let buffer_view = buffer_views.get(buffer_view_idx)
+    let buffer_view = buffer_views
+        .get(buffer_view_idx)
         .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
 
     let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let byte_length = buffer_view["byteLength"].as_u64()
+    let byte_length = buffer_view["byteLength"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
         as usize;
 
-    let component_type = accessor["componentType"].as_u64()
+    let component_type = accessor["componentType"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
 
-    let count = accessor["count"].as_u64()
-        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
-        as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))? as usize;
 
     if component_type != COMPONENT_FLOAT as u64 {
         return Err(InteropError::Unsupported("componentType no es float32"));
@@ -622,7 +652,8 @@ fn read_uvs(
         }
 
         let u = f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as f64;
-        let v = f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
+        let v =
+            f32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]) as f64;
 
         soup.uvs.push(DVec2::new(u, v));
     }
@@ -637,24 +668,28 @@ fn read_indices(
     accessor: &Value,
     buffer_views: &[Value],
 ) -> Result<()> {
-    let buffer_view_idx = accessor["bufferView"].as_u64()
+    let buffer_view_idx = accessor["bufferView"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("indices sin bufferView".into()))?
         as usize;
 
-    let buffer_view = buffer_views.get(buffer_view_idx)
+    let buffer_view = buffer_views
+        .get(buffer_view_idx)
         .ok_or_else(|| InteropError::InvalidMesh("bufferView out of range".into()))?;
 
     let byte_offset = buffer_view["byteOffset"].as_u64().unwrap_or(0) as usize;
-    let byte_length = buffer_view["byteLength"].as_u64()
+    let byte_length = buffer_view["byteLength"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("byteLength missing".into()))?
         as usize;
 
-    let component_type = accessor["componentType"].as_u64()
+    let component_type = accessor["componentType"]
+        .as_u64()
         .ok_or_else(|| InteropError::InvalidMesh("componentType missing".into()))?;
 
-    let count = accessor["count"].as_u64()
-        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))?
-        as usize;
+    let count = accessor["count"]
+        .as_u64()
+        .ok_or_else(|| InteropError::InvalidMesh("count missing".into()))? as usize;
 
     if byte_offset + byte_length > buffer.len() {
         return Err(InteropError::Malformed {
@@ -690,12 +725,15 @@ fn read_indices(
                         detail: "indices data truncado".into(),
                     });
                 }
-                let val = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]);
+                let val =
+                    u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]);
                 soup.indices.push(val);
             }
         }
         _ => {
-            return Err(InteropError::Unsupported("componentType de índices no soportado"));
+            return Err(InteropError::Unsupported(
+                "componentType de índices no soportado",
+            ));
         }
     }
 

@@ -154,18 +154,27 @@ mod tests {
         // Estructura
         assert!(usda.contains("#usda 1.0"), "falta header usda");
         assert!(usda.contains("upAxis = \"Z\""), "upAxis no es Z");
-        assert!(usda.contains("metersPerUnit = 0.001"), "metersPerUnit no es 0.001");
+        assert!(
+            usda.contains("metersPerUnit = 0.001"),
+            "metersPerUnit no es 0.001"
+        );
 
         // Malla
         assert!(usda.contains("def Mesh"), "no hay Mesh");
         assert!(usda.contains("def Xform \"stage\""), "no hay stage");
         assert!(usda.contains("point3f[]"), "no hay points");
         assert!(usda.contains("faceVertexCounts"), "no hay faceVertexCounts");
-        assert!(usda.contains("faceVertexIndices"), "no hay faceVertexIndices");
+        assert!(
+            usda.contains("faceVertexIndices"),
+            "no hay faceVertexIndices"
+        );
 
         // Valores
         assert!(usda.contains("0.000000000"), "no contiene vertices");
-        assert!(usda.contains("1.000000000"), "no contiene valores esperados");
+        assert!(
+            usda.contains("1.000000000"),
+            "no contiene valores esperados"
+        );
     }
 
     #[test]
@@ -173,7 +182,10 @@ mod tests {
         let mut s = TriangleSoup::default();
         s.positions.clear(); // sin vertices
 
-        assert!(to_string(&s).is_err(), "deberia rechazar malla sin vertices");
+        assert!(
+            to_string(&s).is_err(),
+            "deberia rechazar malla sin vertices"
+        );
     }
 
     #[test]
@@ -193,6 +205,9 @@ mod tests {
 
         let usda = to_string(&s).unwrap();
         assert!(usda.contains("normal3f[]"), "no hay normales");
-        assert!(usda.contains("interpolation = \"vertex\""), "interpolacion incorrecta");
+        assert!(
+            usda.contains("interpolation = \"vertex\""),
+            "interpolacion incorrecta"
+        );
     }
 }

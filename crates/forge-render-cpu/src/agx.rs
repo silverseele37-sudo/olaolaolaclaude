@@ -110,7 +110,7 @@ pub const PIVOTE_Y: f32 = 0.5;
 /// El test guarda ese contraste explícitamente.
 pub const PENDIENTE: f32 = 2.0;
 pub const POTENCIA_PIE: f32 = 3.0;
-pub const POTENCIA_HOMBRO: f32 = 3.0;
+pub const POTENCIA_HOMBRO: f32 = 3.25;
 
 fn escala(x_pivote: f32, y_pivote: f32, pendiente: f32, potencia: f32) -> f32 {
     let a = (pendiente * x_pivote).powf(-potencia);

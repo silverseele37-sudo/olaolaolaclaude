@@ -335,8 +335,18 @@ fn glb_ida_y_vuelta_conserva_geometria() {
     // el bounding box debe coincidir dentro de tolerancia (perdida por float32 y conversiones)
     let orig_bbox = original.bbox();
     let vuelta_bbox = vuelta.bbox();
-    assert!((orig_bbox.min - vuelta_bbox.min).length() < 1e-5, "min: {:?} != {:?}", orig_bbox.min, vuelta_bbox.min);
-    assert!((orig_bbox.max - vuelta_bbox.max).length() < 1e-5, "max: {:?} != {:?}", orig_bbox.max, vuelta_bbox.max);
+    assert!(
+        (orig_bbox.min - vuelta_bbox.min).length() < 1e-5,
+        "min: {:?} != {:?}",
+        orig_bbox.min,
+        vuelta_bbox.min
+    );
+    assert!(
+        (orig_bbox.max - vuelta_bbox.max).length() < 1e-5,
+        "max: {:?} != {:?}",
+        orig_bbox.max,
+        vuelta_bbox.max
+    );
 }
 
 #[test]
@@ -371,8 +381,14 @@ fn usd_escribe_geometria_estatica_solo() {
 
     // Encabezado
     assert!(usda.contains("#usda 1.0"), "falta header USDA");
-    assert!(usda.contains("upAxis = \"Z\""), "upAxis no es Z (ventaja sobre glTF)");
-    assert!(usda.contains("metersPerUnit = 0.001"), "metersPerUnit debe ser 0.001 para mm");
+    assert!(
+        usda.contains("upAxis = \"Z\""),
+        "upAxis no es Z (ventaja sobre glTF)"
+    );
+    assert!(
+        usda.contains("metersPerUnit = 0.001"),
+        "metersPerUnit debe ser 0.001 para mm"
+    );
 
     // Estructura: geometría estática, sin composición
     assert!(usda.contains("def Xform \"stage\""), "no hay stage");
@@ -384,13 +400,25 @@ fn usd_escribe_geometria_estatica_solo() {
     // Atributos de malla
     assert!(usda.contains("point3f[]"), "no hay points");
     assert!(usda.contains("faceVertexCounts"), "no hay faceVertexCounts");
-    assert!(usda.contains("faceVertexIndices"), "no hay faceVertexIndices");
+    assert!(
+        usda.contains("faceVertexIndices"),
+        "no hay faceVertexIndices"
+    );
     assert!(usda.contains("normal3f[]"), "no hay normales");
 
     // Valores: todos deben tener 9 decimales de precisión
-    assert!(usda.contains("10.000000000"), "no contiene valores esperados");
-    assert!(usda.contains("20.000000000"), "no contiene valores esperados");
-    assert!(usda.contains("30.000000000"), "no contiene valores esperados");
+    assert!(
+        usda.contains("10.000000000"),
+        "no contiene valores esperados"
+    );
+    assert!(
+        usda.contains("20.000000000"),
+        "no contiene valores esperados"
+    );
+    assert!(
+        usda.contains("30.000000000"),
+        "no contiene valores esperados"
+    );
 }
 
 #[test]
@@ -404,12 +432,18 @@ fn usd_sin_conversiones_mantiene_precision_exacta() {
     assert!(usda.contains("3.500000000"), "coordenadas Z no preservadas");
 
     // Los números están en el mismo rango que en FORGE: sin conversión de metros
-    assert!(usda.contains("11.500000000"), "conversión de unidades no debería ocurrir");
+    assert!(
+        usda.contains("11.500000000"),
+        "conversión de unidades no debería ocurrir"
+    );
 }
 
 #[test]
 fn usd_rechaza_mallas_invalidas() {
     let mut s = caja(DVec3::ZERO, DVec3::ONE);
     s.positions.clear();
-    assert!(usd::to_string(&s).is_err(), "debería rechazar malla sin vertices");
+    assert!(
+        usd::to_string(&s).is_err(),
+        "debería rechazar malla sin vertices"
+    );
 }

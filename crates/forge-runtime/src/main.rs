@@ -125,8 +125,7 @@ fn cargar_documento(ruta: &std::path::Path) -> forge_runtime::Result<forge_doc::
     let blobs = MemoryBlobStore::new();
     let registry = forge_io::registro_por_defecto();
 
-    forge_io::load(ruta, registry, &blobs)
-        .map_err(|e| format!("Error de E/S: {}", e).into())
+    forge_io::load(ruta, registry, &blobs).map_err(|e| format!("Error de E/S: {}", e).into())
 }
 
 /// Renderiza el snapshot y lo guarda como PPM.
@@ -162,10 +161,9 @@ fn guardar_ppm(
     alto: u32,
     rgba: &[u8],
 ) -> forge_runtime::Result<()> {
-    let mut archivo = fs::File::create(ruta)
-        .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("No se puede crear {}: {}", ruta.display(), e).into()
-        })?;
+    let mut archivo = fs::File::create(ruta).map_err(|e| -> Box<dyn std::error::Error> {
+        format!("No se puede crear {}: {}", ruta.display(), e).into()
+    })?;
 
     // Encabezado PPM P6
     write!(archivo, "P6\n")?;
@@ -177,7 +175,7 @@ fn guardar_ppm(
     let mut rgb = Vec::with_capacity(n_pixeles * 3);
 
     for i in 0..n_pixeles {
-        rgb.push(rgba[i * 4]);     // R
+        rgb.push(rgba[i * 4]); // R
         rgb.push(rgba[i * 4 + 1]); // G
         rgb.push(rgba[i * 4 + 2]); // B
     }

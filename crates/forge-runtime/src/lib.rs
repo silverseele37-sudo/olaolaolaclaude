@@ -3,7 +3,7 @@
 use forge_doc::{Geometry, Snapshot, Visible};
 use forge_math::Aabb;
 use forge_render_api::{Camera, Light, RenderTarget, Renderer, SceneView};
-use forge_render_cpu::{MapaDeMallas, CpuMesh, TablaDeMateriales, SoftwareRenderer};
+use forge_render_cpu::{CpuMesh, MapaDeMallas, SoftwareRenderer, TablaDeMateriales};
 use forge_store::BlobStore;
 use std::error::Error;
 
@@ -28,10 +28,7 @@ impl SceneConverter {
     /// Carga geometría de malla del snapshot.
     pub fn cargar_geometria(&mut self, snap: &Snapshot, blobs: &dyn BlobStore) -> Result<()> {
         for (entity, geometry) in snap.iter::<Geometry>() {
-            let visible = snap
-                .get::<Visible>(entity)
-                .map(|v| v.0)
-                .unwrap_or(true);
+            let visible = snap.get::<Visible>(entity).map(|v| v.0).unwrap_or(true);
 
             if !visible {
                 continue;
@@ -86,10 +83,7 @@ pub fn calcular_estadisticas(snap: &Snapshot, blobs: &dyn BlobStore) -> Result<S
     let _bbox: Option<Aabb> = None;
 
     for (entity, geometry) in snap.iter::<Geometry>() {
-        let visible = snap
-            .get::<Visible>(entity)
-            .map(|v| v.0)
-            .unwrap_or(true);
+        let visible = snap.get::<Visible>(entity).map(|v| v.0).unwrap_or(true);
 
         if !visible {
             continue;
@@ -112,11 +106,7 @@ pub fn calcular_estadisticas(snap: &Snapshot, blobs: &dyn BlobStore) -> Result<S
 }
 
 /// Renderiza un snapshot a bytes RGBA.
-pub fn renderizar(
-    snap: &Snapshot,
-    blobs: &dyn BlobStore,
-    size: (u32, u32),
-) -> Result<Vec<u8>> {
+pub fn renderizar(snap: &Snapshot, blobs: &dyn BlobStore, size: (u32, u32)) -> Result<Vec<u8>> {
     let mut converter = SceneConverter::new();
     converter.cargar_geometria(snap, blobs)?;
 
@@ -124,13 +114,11 @@ pub fn renderizar(
 
     // Crear instancias vacías por ahora (sin mallas cargadas)
     let instances = Vec::new();
-    let lights = vec![
-        Light::Directional {
-            direction: forge_math::DVec3::new(-1.0, -1.0, 1.0).normalize(),
-            color: [1.0, 1.0, 1.0],
-            intensity: 1.0,
-        },
-    ];
+    let lights = vec![Light::Directional {
+        direction: forge_math::DVec3::new(-1.0, -1.0, 1.0).normalize(),
+        color: [1.0, 1.0, 1.0],
+        intensity: 1.0,
+    }];
 
     let view = SceneView {
         camera: Camera::default(),
