@@ -1262,3 +1262,243 @@ fn un_poligono_de_diecisiete_lados_conserva_sus_referencias_bajo_un_cambio_de_co
         assert_eq!(resolucion.valor(), Some(referencia.objetivo));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Sección 6 — la medición agregada. Aquí es donde el criterio de aceptación
+// de ADR-0002 §6 (≥95 % en cambios de cota típicos) deja de ser una promesa y
+// pasa a ser un número que este test recalcula cada vez que corre.
+// ---------------------------------------------------------------------------
+
+/// Una batería de cambios de cota típicos — distancia de extrusión en
+/// polígonos de distinto número de lados, posición del sketch, dimensiones
+/// de caja, radio/altura de cilindro y dirección de extrusión — medida de
+/// una sola vez con [`tasa_de_revinculacion`]. Es el `assert` que decide si
+/// `forge-param` sirve para lo que dice ADR-0002 §6.
+#[test]
+fn la_tasa_de_revinculacion_en_cambios_de_cota_tipicos_alcanza_el_criterio_de_aceptacion() {
+    let mut m = Medidor::default();
+    let k = kernel();
+
+    // 1) distancia de extrusion, en poligonos de distinto numero de lados,
+    //    creciendo y encogiendo.
+    for n in [3u32, 5, 6, 8, 12] {
+        for (d0, d1) in [(5.0, 9.0), (5.0, 1.5), (10.0, 10.001)] {
+            let sketch_id = fid(1);
+            let extrude_id = fid(2);
+            let mut tree = arbol_extrude_poligono(
+                sketch_id, extrude_id, n, 10.0, Plano::default(), DVec3::Z, d0,
+            );
+            let topo0 = topologia_de(&k, &tree, extrude_id);
+            let cara = cara_lateral(&topo0, n / 2).expect("cara lateral");
+            let referencia = TopoRef::capturar(extrude_id, &cara);
+            set_distancia(&mut tree, extrude_id, d1);
+            let topo1 = topologia_de(&k, &tree, extrude_id);
+            m.tipico(Resolver::default().resolver(&referencia, &topo1));
+        }
+    }
+
+    // 2) posicion del sketch: traslaciones y rotaciones variadas.
+    for (tras, ang) in [
+        (DVec3::new(1.0, 0.0, 0.0), 0.0),
+        (DVec3::ZERO, 0.3),
+        (DVec3::new(-3.0, 4.0, 2.0), 1.1),
+        (DVec3::new(0.0, 0.0, 50.0), 0.0),
+    ] {
+        let sketch_id = fid(1);
+        let extrude_id = fid(2);
+        let mut tree = arbol_extrude_poligono(
+            sketch_id, extrude_id, 6, 10.0, Plano::default(), DVec3::Z, 5.0,
+        );
+        let topo0 = topologia_de(&k, &tree, extrude_id);
+        let cara = cara_lateral(&topo0, 2).unwrap();
+        let referencia = TopoRef::capturar(extrude_id, &cara);
+        if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+            s.plano = mover_plano(s.plano, tras, ang);
+        }
+        let topo1 = topologia_de(&k, &tree, extrude_id);
+        m.tipico(Resolver::default().resolver(&referencia, &topo1));
+    }
+
+    // 3) cajas: variaciones de min/max.
+    for (min0, max0, min1, max1) in [
+        (
+            DVec3::ZERO,
+            DVec3::new(10.0, 10.0, 10.0),
+            DVec3::ZERO,
+            DVec3::new(50.0, 10.0, 10.0),
+        ),
+        (
+            DVec3::ZERO,
+            DVec3::new(10.0, 10.0, 10.0),
+            DVec3::new(-5.0, -5.0, -5.0),
+            DVec3::new(5.0, 5.0, 5.0),
+        ),
+        (
+            DVec3::new(1.0, 1.0, 1.0),
+            DVec3::new(2.0, 2.0, 2.0),
+            DVec3::new(1.0, 1.0, 1.0),
+            DVec3::new(2.0, 20.0, 2.0),
+        ),
+    ] {
+        let caja_id = fid(1);
+        let mut tree = arbol_caja(caja_id, min0, max0);
+        let topo0 = topologia_de(&k, &tree, caja_id);
+        let cara = cara_primitiva(&topo0, 4).unwrap();
+        let referencia = TopoRef::capturar(caja_id, &cara);
+        set_caja(&mut tree, caja_id, min1, max1);
+        let topo1 = topologia_de(&k, &tree, caja_id);
+        m.tipico(Resolver::default().resolver(&referencia, &topo1));
+    }
+
+    // 4) cilindros: radio y altura.
+    for (r0, h0, r1, h1) in [
+        (10.0, 20.0, 15.0, 20.0),
+        (10.0, 20.0, 10.0, 45.0),
+        (5.0, 5.0, 30.0, 2.0),
+    ] {
+        let cil_id = fid(1);
+        let mut tree = arbol_cilindro(cil_id, DVec3::ZERO, DVec3::Z, r0, h0);
+        let topo0 = topologia_de(&k, &tree, cil_id);
+        let cara = cara_primitiva(&topo0, 0).unwrap();
+        let referencia = TopoRef::capturar(cil_id, &cara);
+        set_cilindro(&mut tree, cil_id, DVec3::ZERO, DVec3::Z, r1, h1);
+        let topo1 = topologia_de(&k, &tree, cil_id);
+        m.tipico(Resolver::default().resolver(&referencia, &topo1));
+    }
+
+    // 5) direccion de extrusion.
+    for dir in [
+        DVec3::X,
+        DVec3::new(1.0, 1.0, 1.0).normalize(),
+        DVec3::new(0.0, 1.0, 0.0),
+    ] {
+        let sketch_id = fid(1);
+        let extrude_id = fid(2);
+        let mut tree = arbol_extrude_poligono(
+            sketch_id, extrude_id, 6, 10.0, Plano::default(), DVec3::Z, 5.0,
+        );
+        let topo0 = topologia_de(&k, &tree, extrude_id);
+        let cara = cara_lateral(&topo0, 1).unwrap();
+        let referencia = TopoRef::capturar(extrude_id, &cara);
+        set_direccion(&mut tree, extrude_id, dir);
+        let topo1 = topologia_de(&k, &tree, extrude_id);
+        m.tipico(Resolver::default().resolver(&referencia, &topo1));
+    }
+
+    let tasa = m.tasa_tipicos();
+    let ok = m.tipicos.iter().filter(|r| !r.rota()).count();
+    let total = m.tipicos.len();
+    assert!(
+        total >= 15,
+        "la muestra ({total} casos) es demasiado pequena para que el porcentaje signifique algo"
+    );
+    assert!(
+        tasa >= 0.95,
+        "tasa de re-vinculacion en cambios de cota tipicos: {:.1}% ({ok} de {total}); \
+         por debajo del 95% que exige ADR-0002 §6",
+        tasa * 100.0
+    );
+    eprintln!(
+        "tasa de re-vinculacion en cambios de cota tipicos: {:.1}% ({ok} de {total})",
+        tasa * 100.0
+    );
+}
+
+/// La misma medición, para cambios de **topología**: reducir el número de
+/// lados de un polígono (la referencia puede sobrevivir por firma o
+/// romperse, según quede o no una candidata sin ambigüedad — sección 2),
+/// suprimir un nodo intermedio (sección 3) y reordenar dos nodos de una
+/// cadena (sección 4).
+///
+/// ADR-0002 §6 no pide ningún porcentaje aquí — la sección 2 ya muestra un
+/// caso natural de cada desenlace posible (`Rebound` y `Broken`), y eso es
+/// exactamente lo esperable: un cambio de topología **puede** legítimamente
+/// romper una referencia. Lo que este test aporta que los casos individuales
+/// no muestran es el **número real** sobre una muestra más ancha, con un
+/// piso de regresión: si una futura corrida saca menos que lo medido hoy,
+/// algo empeoró.
+#[test]
+fn la_tasa_de_revinculacion_en_cambios_de_topologia_se_documenta_con_su_numero_real() {
+    let mut m = Medidor::default();
+    let k = kernel();
+
+    // a) reducir el numero de lados de un poligono, referenciando el ultimo
+    //    indice de la lista -- el que con mas probabilidad desaparece.
+    for (n0, n1) in [(8u32, 6u32), (10, 4), (12, 3), (6, 3), (9, 5), (7, 4)] {
+        let sketch_id = fid(1);
+        let extrude_id = fid(2);
+        let mut tree = arbol_extrude_poligono(
+            sketch_id, extrude_id, n0, 10.0, Plano::default(), DVec3::Z, 5.0,
+        );
+        let topo0 = topologia_de(&k, &tree, extrude_id);
+        let cara = cara_lateral(&topo0, n0 - 1).unwrap();
+        let referencia = TopoRef::capturar(extrude_id, &cara);
+        if let NodeKind::Sketch(s) = &mut tree.nodo_mut(sketch_id).unwrap().kind {
+            s.modelo.points = puntos_poligono(n1, 10.0);
+            s.perfil = (0..n1).map(forge_kernel_api::sketch::PointId).collect();
+        }
+        let topo1 = topologia_de(&k, &tree, extrude_id);
+        m.topologico(Resolver::default().resolver(&referencia, &topo1));
+    }
+
+    // b) supresion de un fillet intermedio, con la arista del chamfer en
+    //    varios angulos distintos.
+    for angulo_sonda in [60.0, 120.0, 240.0, 300.0] {
+        let sketch_id = fid(1);
+        let extrude_id = fid(2);
+        let fillet_id = fid(3);
+        let chamfer_id = fid(4);
+        let altura = 6.0;
+        let mut tree = arbol_extrude_poligono(
+            sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+        );
+        let _rf = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+            arista_vertical_en(t, altura, 0.0)
+        });
+        let _rc = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+            arista_vertical_en(t, altura, angulo_sonda)
+        });
+        tree.suprimir(fillet_id, true).unwrap();
+        m.topologico(medir("supresion_agregada", &k, &tree, chamfer_id));
+    }
+
+    // c) reordenaciones, con las dos aristas en varios pares de angulos.
+    for (angulo_a, angulo_b) in [(0.0, 180.0), (60.0, 240.0), (120.0, 300.0)] {
+        let sketch_id = fid(1);
+        let extrude_id = fid(2);
+        let fillet_id = fid(3);
+        let chamfer_id = fid(4);
+        let altura = 6.0;
+        let mut tree = arbol_extrude_poligono(
+            sketch_id, extrude_id, 6, 30.0, Plano::default(), DVec3::Z, altura,
+        );
+        let _rf = agregar_fillet_sobre(&k, &mut tree, extrude_id, fillet_id, 1.0, |t| {
+            arista_vertical_en(t, altura, angulo_a)
+        });
+        let _rc = agregar_chamfer_sobre(&k, &mut tree, fillet_id, chamfer_id, 0.4, |t| {
+            arista_vertical_en(t, altura, angulo_b)
+        });
+        tree.intercambiar_en_la_cadena(fillet_id, chamfer_id).unwrap();
+        m.topologico(medir("reorden_agregado", &k, &tree, chamfer_id));
+    }
+
+    let tasa = m.tasa_topologicos();
+    let ok = m.topologicos.iter().filter(|r| !r.rota()).count();
+    let total = m.topologicos.len();
+    eprintln!(
+        "tasa de re-vinculacion en cambios de topologia: {:.1}% ({ok} de {total})",
+        tasa * 100.0
+    );
+    // Piso de regresion, no promesa: medido hoy en 9/13 (~69.2%), casi todo
+    // el deficit viene del grupo (a) -- reducir el numero de lados es, de
+    // los tres tipos de cambio de topologia de esta suite, el que mas
+    // referencias rompe de verdad (ver la seccion 2). Si esta cifra baja en
+    // una corrida futura, algo en el resolver o en el stub cambio para peor
+    // y hay que mirarlo -- no hay que subirlo "para que pase" sin entender
+    // por que bajo.
+    assert!(
+        tasa >= 0.69,
+        "la tasa en cambios de topologia bajo de lo medido hasta ahora: {:.1}% ({ok} de {total})",
+        tasa * 100.0
+    );
+}
