@@ -1489,6 +1489,15 @@ fn la_tasa_de_revinculacion_en_cambios_de_topologia_se_documenta_con_su_numero_r
         "tasa de re-vinculacion en cambios de topologia: {:.1}% ({ok} de {total})",
         tasa * 100.0
     );
+    // Un piso solo detecta que la tasa baje, no que suba por el motivo
+    // equivocado: un resolver que re-vinculara a la primera candidata sin
+    // mirar la firma sacaria el 100 % aqui y pasaria este assert tan ancho.
+    // Lo que caza ese fallo es
+    // `reducir_un_octogono_a_triangulo_sin_candidata_orientada_rompe_la_referencia`,
+    // que exige que una referencia *se rompa*. Comprobado sustituyendo la capa
+    // 2 por "devolver siempre la primera": este test sigue pasando y aquel
+    // falla, junto con los otros cinco de re-vinculacion por firma.
+    //
     // Piso de regresion, no promesa: medido hoy en 9/13 (~69.2%), casi todo
     // el deficit viene del grupo (a) -- reducir el numero de lados es, de
     // los tres tipos de cambio de topologia de esta suite, el que mas
