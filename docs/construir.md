@@ -147,11 +147,22 @@ Esta tabla importa más que la guía. **Lo que no se ha podido medir, no se afir
 | Frontera de dominio (`ToMesh`) | Verificado: 100 % de procedencia conservada a través de la pila de modificadores. |
 | Interoperabilidad glTF/OBJ | Verificado, incluidas las conversiones de ejes y unidades. |
 | Almacén de activos | Verificado, con rendimiento medido sobre 100 000 activos. |
+| Reproductor sin editor (`forge-runtime`) | Verificado de punta a punta con el rasterizador por software: escribe un `.forge`, lo relee del disco con un almacén de blobs limpio y lo dibuja. Ver `cargo run -p forge-runtime --example escena_demo`. |
 | **Visor con GPU** | **No verificado aquí**: el contenedor de desarrollo no tiene GPU. Compila; que renderice bien está por comprobar en tu máquina. |
 | **Puente a OpenCASCADE** | **No verificado**: OCCT no estaba instalado. El andamiaje está; el C++ no se ha ejecutado nunca. |
 
 Si algo de las dos últimas filas falla en tu portátil, no es una sorpresa: es lo
 que dice esta tabla.
+
+Una advertencia sobre cómo leerla: «verificado» significa que hay un test con una
+respuesta conocida derivada a mano, no que el código parezca correcto. Tres
+fallos reales de este proyecto pasaron por delante de tests que existían y
+pasaban: un chaflán que daba mal el volumen en 6 de las 12 aristas de un cubo
+(los tests solo probaban la arista 0), un booleano que inflaba el área hasta un
+72 % (el test solo miraba el volumen, y el volumen sí era correcto), y un
+reproductor que abría cualquier documento, dibujaba una imagen vacía y decía que
+todo había ido bien (los dos tests usaban un documento vacío). Ninguno daba
+error.
 
 ---
 
