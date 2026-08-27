@@ -131,7 +131,7 @@ impl Bin {
     }
 
     fn align(&mut self, a: usize) {
-        while self.bytes.len() % a != 0 {
+        while !self.bytes.len().is_multiple_of(a) {
             self.bytes.push(0);
         }
     }
@@ -420,7 +420,7 @@ pub fn read_glb(bytes: &[u8], opts: GltfOptions) -> Result<TriangleSoup> {
     // Encontrar los índices de POSITION, NORMAL, TEXCOORD_0 e índices
     let primitives = json["meshes"][0]["primitives"]
         .as_array()
-        .and_then(|p| p.get(0))
+        .and_then(|p| p.first())
         .ok_or_else(|| InteropError::InvalidMesh("no hay primitives".into()))?;
 
     let attrs = primitives["attributes"]
@@ -449,11 +449,13 @@ pub fn read_glb(bytes: &[u8], opts: GltfOptions) -> Result<TriangleSoup> {
         .map(|i| i as usize);
 
     // Leer datos de accesores
-    let mut soup = TriangleSoup::default();
-    soup.name = json["meshes"][0]["name"]
-        .as_str()
-        .unwrap_or("malla")
-        .to_string();
+    let mut soup = TriangleSoup {
+        name: json["meshes"][0]["name"]
+            .as_str()
+            .unwrap_or("malla")
+            .to_string(),
+        ..Default::default()
+    };
 
     // Leer POSITION
     read_positions(&mut soup, buffer, &accessors[pos_idx], buffer_views, opts)?;

@@ -110,12 +110,29 @@ impl MapaDeMallas {
         Self::default()
     }
 
-    /// Inserta y devuelve el hash de contenido, que es lo que hay que poner en
-    /// `DrawInstance::mesh`.
+    /// Inserta indexando por el hash del **contenido decodificado**, y lo
+    /// devuelve.
+    ///
+    /// Sirve para montar una escena a mano (tests, demos): quien llama pone ese
+    /// hash en `DrawInstance::mesh` y cuadra. **No sirve para una escena que
+    /// venga de un documento**: ahí el hash de la instancia es el del blob del
+    /// documento —los bytes del GLB— y no coincide con este. Para ese caso está
+    /// [`MapaDeMallas::insertar_con_hash`].
     pub fn insertar(&mut self, m: CpuMesh) -> BlobHash {
         let h = m.hash();
         self.mallas.insert(h, m);
         h
+    }
+
+    /// Inserta bajo un hash que decide quien llama.
+    ///
+    /// Es el camino del documento: `DrawInstance::mesh` lleva el hash del blob
+    /// tal y como está en el `.forge`, así que la malla ya decodificada tiene
+    /// que quedar indexada por **ese** hash y no por el suyo propio. Cruzarlos
+    /// no da ningún error: `malla()` devuelve `None`, la instancia se descarta
+    /// y el frame sale en negro.
+    pub fn insertar_con_hash(&mut self, h: BlobHash, m: CpuMesh) {
+        self.mallas.insert(h, m);
     }
 
     pub fn len(&self) -> usize {

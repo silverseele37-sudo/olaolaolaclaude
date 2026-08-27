@@ -843,6 +843,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-escena"
+version = "0.1.0"
+dependencies = [
+ "forge-doc",
+ "forge-math",
+ "forge-render-api",
+ "forge-store",
+]
+
+[[package]]
 name = "forge-interop"
 version = "0.1.0"
 dependencies = [
@@ -994,6 +1004,8 @@ name = "forge-runtime"
 version = "0.1.0"
 dependencies = [
  "forge-doc",
+ "forge-escena",
+ "forge-interop",
  "forge-io",
  "forge-material",
  "forge-math",
@@ -1037,6 +1049,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "forge-doc",
+ "forge-escena",
  "forge-math",
  "forge-render-api",
  "forge-store",

@@ -13,6 +13,8 @@ forge-doc = { workspace = true }
 forge-io = { workspace = true }
 forge-render-api = { workspace = true }
 forge-render-cpu = { workspace = true }
+forge-escena = { workspace = true }
+forge-interop = { workspace = true }
 forge-material = { workspace = true }
 
 serde = { workspace = true }

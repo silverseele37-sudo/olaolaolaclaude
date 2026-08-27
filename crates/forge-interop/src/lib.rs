@@ -73,7 +73,7 @@ impl TriangleSoup {
     /// Invariantes estructurales. Barato y evita exportar basura que el
     /// programa de destino rechace con un error incomprensible.
     pub fn validate(&self) -> Result<()> {
-        if self.indices.len() % 3 != 0 {
+        if !self.indices.len().is_multiple_of(3) {
             return Err(InteropError::InvalidMesh(format!(
                 "indices no multiplo de 3: {}",
                 self.indices.len()

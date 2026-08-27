@@ -10,8 +10,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 
-use forge_io;
-use forge_runtime;
 use forge_store::MemoryBlobStore;
 
 fn main() {
@@ -71,8 +69,14 @@ fn main() {
     }
 
     // Cargar el archivo
+    // El almacen se crea AQUI y vive hasta el final: `load` mete en el los
+    // blobs del archivo, y son los que luego hacen falta para dibujar. La
+    // version anterior lo creaba dentro de `cargar_documento`, lo dejaba morir
+    // al volver y renderizaba contra otro almacen vacio, asi que ninguna malla
+    // se encontraba nunca.
     let ruta = PathBuf::from(archivo);
-    let doc = match cargar_documento(&ruta) {
+    let blobs = MemoryBlobStore::new();
+    let doc = match cargar_documento(&ruta, &blobs) {
         Ok(doc) => doc,
         Err(e) => {
             eprintln!("Error al cargar '{}': {}", archivo, e);
@@ -81,7 +85,6 @@ fn main() {
     };
 
     let snap = doc.snapshot();
-    let blobs = MemoryBlobStore::new();
 
     // Calcular estadísticas
     let stats = match forge_runtime::calcular_estadisticas(&snap, &blobs) {
@@ -96,8 +99,13 @@ fn main() {
     println!("  Entidades: {}", stats.entidades);
     println!("  Instancias: {}", stats.instancias);
     println!("  Triángulos: {}", stats.triangulos);
-    if let Some(bbox) = stats.bounding_box {
-        println!("  Bounding box: {:?}", bbox);
+    if stats.caja.is_empty() {
+        println!("  Caja de mundo: vacia (nada dibujable)");
+    } else {
+        println!(
+            "  Caja de mundo: {:?} .. {:?} mm",
+            stats.caja.min, stats.caja.max
+        );
     }
 
     // Si solo queremos estadísticas, terminamos aquí
@@ -119,13 +127,14 @@ fn main() {
     }
 }
 
-/// Carga un documento .forge.
-fn cargar_documento(ruta: &std::path::Path) -> forge_runtime::Result<forge_doc::Document> {
-    // Crear un blob store para los blobs del archivo
-    let blobs = MemoryBlobStore::new();
+/// Carga un documento `.forge` y deja sus blobs en `blobs`.
+fn cargar_documento(
+    ruta: &std::path::Path,
+    blobs: &dyn forge_store::BlobStore,
+) -> forge_runtime::Result<forge_doc::Document> {
     let registry = forge_io::registro_por_defecto();
-
-    forge_io::load(ruta, registry, &blobs).map_err(|e| format!("Error de E/S: {}", e).into())
+    forge_io::load(ruta, registry, blobs)
+        .map_err(|e| forge_runtime::RuntimeError::Documento(e.to_string()))
 }
 
 /// Renderiza el snapshot y lo guarda como PPM.
@@ -161,25 +170,25 @@ fn guardar_ppm(
     alto: u32,
     rgba: &[u8],
 ) -> forge_runtime::Result<()> {
-    let mut archivo = fs::File::create(ruta).map_err(|e| -> Box<dyn std::error::Error> {
-        format!("No se puede crear {}: {}", ruta.display(), e).into()
-    })?;
+    let mut archivo =
+        fs::File::create(ruta).map_err(|e| forge_runtime::RuntimeError::io(ruta, e))?;
 
     // Encabezado PPM P6
-    write!(archivo, "P6\n")?;
-    write!(archivo, "{} {}\n", ancho, alto)?;
-    write!(archivo, "255\n")?;
+    let cab = format!("P6\n{ancho} {alto}\n255\n");
+    archivo
+        .write_all(cab.as_bytes())
+        .map_err(|e| forge_runtime::RuntimeError::io(ruta, e))?;
 
     // Datos RGB (descartar alpha)
     let n_pixeles = (ancho * alto) as usize;
     let mut rgb = Vec::with_capacity(n_pixeles * 3);
 
-    for i in 0..n_pixeles {
-        rgb.push(rgba[i * 4]); // R
-        rgb.push(rgba[i * 4 + 1]); // G
-        rgb.push(rgba[i * 4 + 2]); // B
+    for p in rgba.chunks_exact(4).take(n_pixeles) {
+        rgb.extend_from_slice(&p[..3]); // RGB, se descarta el alfa
     }
 
-    archivo.write_all(&rgb)?;
+    archivo
+        .write_all(&rgb)
+        .map_err(|e| forge_runtime::RuntimeError::io(ruta, e))?;
     Ok(())
 }

@@ -68,8 +68,8 @@ pub fn exposicion_medida(view: &SceneView<'_>) -> f32 {
 /// de un uniforme, así que no hace falta relleno manual en el shader.
 pub fn sh_para_gpu(ibl: &Ibl) -> [[f32; 4]; 9] {
     let mut out = [[0.0f32; 4]; 9];
-    for i in 0..9 {
-        out[i] = [ibl.sh[i][0], ibl.sh[i][1], ibl.sh[i][2], 0.0];
+    for (o, c) in out.iter_mut().zip(&ibl.sh) {
+        *o = [c[0], c[1], c[2], 0.0];
     }
     out
 }

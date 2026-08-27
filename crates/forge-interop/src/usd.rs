@@ -140,14 +140,16 @@ mod tests {
 
     #[test]
     fn usd_contiene_estructura_minima() {
-        let mut s = TriangleSoup::default();
-        s.name = "cubo".into();
-        s.positions = vec![
-            DVec3::new(0.0, 0.0, 0.0),
-            DVec3::new(1.0, 0.0, 0.0),
-            DVec3::new(0.0, 1.0, 0.0),
-        ];
-        s.indices = vec![0, 1, 2];
+        let s = TriangleSoup {
+            name: "cubo".into(),
+            positions: vec![
+                DVec3::new(0.0, 0.0, 0.0),
+                DVec3::new(1.0, 0.0, 0.0),
+                DVec3::new(0.0, 1.0, 0.0),
+            ],
+            indices: vec![0, 1, 2],
+            ..Default::default()
+        };
 
         let usda = to_string(&s).unwrap();
 
@@ -190,18 +192,20 @@ mod tests {
 
     #[test]
     fn usd_escribe_normales_si_existen() {
-        let mut s = TriangleSoup::default();
-        s.positions = vec![
-            DVec3::new(0.0, 0.0, 0.0),
-            DVec3::new(1.0, 0.0, 0.0),
-            DVec3::new(0.0, 1.0, 0.0),
-        ];
-        s.normals = vec![
-            DVec3::new(0.0, 0.0, 1.0),
-            DVec3::new(0.0, 0.0, 1.0),
-            DVec3::new(0.0, 0.0, 1.0),
-        ];
-        s.indices = vec![0, 1, 2];
+        let s = TriangleSoup {
+            positions: vec![
+                DVec3::new(0.0, 0.0, 0.0),
+                DVec3::new(1.0, 0.0, 0.0),
+                DVec3::new(0.0, 1.0, 0.0),
+            ],
+            normals: vec![
+                DVec3::new(0.0, 0.0, 1.0),
+                DVec3::new(0.0, 0.0, 1.0),
+                DVec3::new(0.0, 0.0, 1.0),
+            ],
+            indices: vec![0, 1, 2],
+            ..Default::default()
+        };
 
         let usda = to_string(&s).unwrap();
         assert!(usda.contains("normal3f[]"), "no hay normales");

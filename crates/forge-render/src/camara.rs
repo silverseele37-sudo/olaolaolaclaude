@@ -377,7 +377,7 @@ mod tests {
             // redondeo de ese paso es esperable y no lo que se está probando.
             for i in 0..4 {
                 assert!(
-                    (obtenido[i] - esperado[i as usize]).abs() < 1e-2,
+                    (obtenido[i] - esperado[i]).abs() < 1e-2,
                     "componente {i}: obtenido {obtenido:?} vs esperado {esperado:?}"
                 );
             }

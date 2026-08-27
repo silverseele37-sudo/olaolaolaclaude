@@ -82,7 +82,7 @@ impl Malla {
     /// es un error de validación en tiempo de dibujo — mucho más caro de
     /// diagnosticar que rechazarla aquí.
     pub fn es_valida(&self) -> bool {
-        if self.indices.len() % 3 != 0 {
+        if !self.indices.len().is_multiple_of(3) {
             return false;
         }
         if !self.normals.is_empty() && self.normals.len() != self.positions.len() {

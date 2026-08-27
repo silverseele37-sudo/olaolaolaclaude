@@ -114,6 +114,31 @@ Ruta: `blobs/<dos primeros dígitos hex del hash>/<hash hex completo>`.
 - Un `.forge` guardado sin blobs es válido y pequeño, pero solo abre donde el
   almacén ya los tiene.
 
+### 4.1 Contenido de un blob de malla
+
+Un blob referenciado por `{"Mesh": hash}` es un **GLB** (glTF 2.0 binario)
+escrito **sin las conversiones de la especificación glTF**: posiciones en
+milímetros y con Z arriba, que son las unidades y los ejes de FORGE.
+
+Esto incumple glTF a propósito, y por eso es normativo decirlo aquí en vez de
+dejarlo implícito. La razón es que dentro del documento el receptor somos
+nosotros, y una conversión de ida y otra de vuelta en cada carga no aporta nada
+salvo pérdida de precisión. La biblioteca lo expone como `GltfOptions::crudo()`.
+Al **exportar** a un `.glb` para otro programa sí se aplican las conversiones
+(`GltfOptions::default()`: Y arriba, metros), porque ahí el receptor es glTF.
+
+Un lector que no distinga los dos casos leerá la escena con los ejes permutados
+y a escala 1000, sin ningún error.
+
+Se eligió GLB en vez de un formato propio por tres razones: ya hay lector y
+escritor en `forge-interop` (una sola ruta de código para el documento y para la
+exportación), es autodescriptivo y versionado, y un blob suelto se puede
+inspeccionar con herramientas que ya existen.
+
+**Lo que el runtime lee de él:** posiciones, normales e índices de la primera
+malla. Materiales, animación y jerarquía de nodos del GLB se ignoran: en un
+`.forge` esos datos viven en el documento, no en el blob.
+
 ---
 
 ## 5. Lo que el formato **no** guarda

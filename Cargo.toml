@@ -44,6 +44,7 @@ forge-mesh         = { path = "crates/forge-mesh" }
 forge-param        = { path = "crates/forge-param" }
 forge-assets       = { path = "crates/forge-assets" }
 forge-script       = { path = "crates/forge-script" }
+forge-escena       = { path = "crates/forge-escena" }
 forge-render-cpu   = { path = "crates/forge-render-cpu" }
 forge-material     = { path = "crates/forge-material" }
 forge-runtime      = { path = "crates/forge-runtime" }

@@ -114,12 +114,22 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
         ),
         ("forge-script", &["forge-math", "forge-doc", "forge-store"]),
         // --- aplicación: es la única que puede verlo todo ---
+        // `forge-escena` es la traduccion Snapshot -> DrawInstance. Vive sola
+        // porque la usan los dos consumidores: el editor y el reproductor sin
+        // editor. No puede depender de ninguna implementacion de render ni de
+        // ningun kernel -- si lo hiciera dejaria de ser una frontera y pasaria a
+        // ser una capa mas del editor.
+        (
+            "forge-escena",
+            &["forge-math", "forge-store", "forge-doc", "forge-render-api"],
+        ),
         (
             "forge-ui",
             &[
                 "forge-math",
                 "forge-store",
                 "forge-doc",
+                "forge-escena",
                 "forge-param",
                 "forge-mesh",
                 "forge-render",
@@ -167,6 +177,13 @@ fn permitido() -> BTreeMap<&'static str, BTreeSet<&'static str>> {
                 "forge-render",
                 "forge-render-cpu",
                 "forge-material",
+                "forge-escena",
+                // El reproductor decodifica los blobs de malla del documento, y
+                // esos blobs son GLB (docs/formato/README.md, 4.1). Leer un
+                // formato de archivo es exactamente lo que `forge-interop`
+                // hace; la alternativa era un segundo lector de GLB dentro del
+                // runtime, que es peor por donde se mire.
+                "forge-interop",
             ],
         ),
     ];
