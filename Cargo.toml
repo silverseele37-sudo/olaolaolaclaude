@@ -34,6 +34,13 @@ forge-kernel-api   = { path = "crates/forge-kernel-api" }
 forge-render-api   = { path = "crates/forge-render-api" }
 forge-material-api = { path = "crates/forge-material-api" }
 forge-interop      = { path = "crates/forge-interop" }
+forge-kernel-stub  = { path = "crates/forge-kernel-stub" }
+forge-mesh         = { path = "crates/forge-mesh" }
+forge-param        = { path = "crates/forge-param" }
+forge-assets       = { path = "crates/forge-assets" }
+forge-script       = { path = "crates/forge-script" }
+forge-render-cpu   = { path = "crates/forge-render-cpu" }
+forge-material     = { path = "crates/forge-material" }
 
 glam      = { version = "0.30", features = ["serde"] }
 blake3    = "1"

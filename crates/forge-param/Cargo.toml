@@ -1,0 +1,18 @@
+[package]
+name = "forge-param"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pilar 1: arbol de features, grafo de evaluacion, nombrado persistente y solver 2D."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+forge-kernel-api = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+forge-kernel-stub = { workspace = true }

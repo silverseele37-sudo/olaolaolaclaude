@@ -1,0 +1,13 @@
+[package]
+name = "forge-render-cpu"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rasterizador por software: implementa el trait Renderer sin GPU, para tests por imagen de referencia."
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+forge-render-api = { workspace = true }

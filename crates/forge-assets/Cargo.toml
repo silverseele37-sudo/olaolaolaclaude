@@ -1,0 +1,18 @@
+[package]
+name = "forge-assets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pilar 4: almacen de activos local y versionado. El indice SQLite es cache, no fuente de verdad."
+
+[dependencies]
+forge-store = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ulid = { workspace = true }
+rusqlite = { version = "0.40", default-features = false, features = ["bundled", "cache"] }
+
+[dev-dependencies]
+tempfile = "3"

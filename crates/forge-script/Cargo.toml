@@ -1,0 +1,22 @@
+[package]
+name = "forge-script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Bus de comandos — la API pública de FORGE — y el host de scripting Lua."
+
+[features]
+default = ["lua"]
+# Lua va tras una feature porque `mlua` compila un intérprete C con `cc`: en un
+# entorno sin cadena de C el bus —que es lo que importa— debe seguir usándose.
+lua = ["dep:mlua"]
+
+[dependencies]
+forge-math = { workspace = true }
+forge-store = { workspace = true }
+forge-doc = { workspace = true }
+serde = { workspace = true }
+ciborium = { workspace = true }
+thiserror = { workspace = true }
+mlua = { version = "0.12", features = ["lua54", "vendored"], optional = true }
